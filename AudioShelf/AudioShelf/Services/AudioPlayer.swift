@@ -25,10 +25,16 @@ class AudioPlayer {
             stop()
             currentEpisode = episode
 
+            // Set duration from episode metadata immediately (more reliable than AVPlayer)
+            if let episodeDuration = episode.duration, episodeDuration > 0 {
+                self.duration = episodeDuration
+                print("Using episode duration from metadata: \(episodeDuration) seconds")
+            }
+
             let playerItem = AVPlayerItem(url: audioURL)
             player = AVPlayer(playerItem: playerItem)
 
-            // Observe duration
+            // Still observe AVPlayer duration as fallback
             observeDuration()
 
             // Observe time updates
@@ -80,14 +86,17 @@ class AudioPlayer {
     private func observeDuration() {
         guard let currentItem = player?.currentItem else { return }
 
-        // Observe duration changes
+        // Observe duration changes (only update if we don't already have a good duration)
         Task { @MainActor in
             for await _ in currentItem.publisher(for: \.status).values {
                 if currentItem.status == .readyToPlay {
                     let itemDuration = currentItem.duration.seconds
                     if !itemDuration.isNaN && !itemDuration.isInfinite && itemDuration > 0 {
-                        self.duration = itemDuration
-                        print("Duration loaded: \(itemDuration) seconds")
+                        // Only update if we don't have a duration yet
+                        if self.duration <= 0 {
+                            self.duration = itemDuration
+                            print("Duration loaded from AVPlayer: \(itemDuration) seconds")
+                        }
                     }
                 }
             }
@@ -98,8 +107,11 @@ class AudioPlayer {
             for await _ in currentItem.publisher(for: \.duration).values {
                 let itemDuration = currentItem.duration.seconds
                 if !itemDuration.isNaN && !itemDuration.isInfinite && itemDuration > 0 {
-                    self.duration = itemDuration
-                    print("Duration updated: \(itemDuration) seconds")
+                    // Only update if we don't have a duration yet
+                    if self.duration <= 0 {
+                        self.duration = itemDuration
+                        print("Duration updated from AVPlayer: \(itemDuration) seconds")
+                    }
                 }
             }
         }
