@@ -31,13 +31,35 @@ class EpisodeDetailViewModel {
     }
 
     func playEpisode(_ episode: Episode) {
-        guard let serverURL = api.serverURL,
-              let audioPath = episode.audioFile?.contentUrl else {
+        guard let serverURL = api.serverURL else {
+            errorMessage = "Server URL not available"
+            return
+        }
+
+        // Try audioFile first, then enclosure
+        let audioPath: String
+        if let audioFileUrl = episode.audioFile?.contentUrl {
+            audioPath = audioFileUrl
+        } else if let enclosureUrl = episode.enclosure?.url {
+            audioPath = enclosureUrl
+        } else {
             errorMessage = "Audio file not available"
             return
         }
 
-        let audioURLString = "\(serverURL)\(audioPath)"
+        // If the path is already a full URL, use it directly
+        let audioURLString: String
+        if audioPath.hasPrefix("http://") || audioPath.hasPrefix("https://") {
+            audioURLString = audioPath
+        } else {
+            // Otherwise, construct URL with server and add auth token
+            guard let token = api.authToken else {
+                errorMessage = "Not authenticated"
+                return
+            }
+            audioURLString = "\(serverURL)\(audioPath)?token=\(token)"
+        }
+
         guard let audioURL = URL(string: audioURLString) else {
             errorMessage = "Invalid audio URL"
             return

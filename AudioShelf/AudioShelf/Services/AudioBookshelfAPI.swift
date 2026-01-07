@@ -179,53 +179,23 @@ class AudioBookshelfAPI {
             throw APIError.invalidResponse
         }
 
-        // Debug: Print the raw JSON to help diagnose decoding issues
-        if let jsonString = String(data: data, encoding: .utf8) {
-            print("Raw JSON response for podcast \(podcastId):")
-            print(jsonString.prefix(500))  // Print first 500 characters
-        }
-
         // Decode the full podcast item which contains episodes in media.episodes
-        do {
-            let podcast = try JSONDecoder().decode(Podcast.self, from: data)
+        let podcast = try JSONDecoder().decode(Podcast.self, from: data)
 
-            guard let episodes = podcast.media.episodes else {
-                print("No episodes found in podcast data")
-                return []
-            }
-
-            // Sort episodes by published date, newest first
-            let sortedEpisodes = episodes.sorted { episode1, episode2 in
-                guard let date1 = episode1.publishedDate,
-                      let date2 = episode2.publishedDate else {
-                    return false
-                }
-                return date1 > date2
-            }
-
-            return sortedEpisodes
-        } catch {
-            print("Decoding error: \(error)")
-            if let decodingError = error as? DecodingError {
-                switch decodingError {
-                case .keyNotFound(let key, let context):
-                    print("Key '\(key)' not found:", context.debugDescription)
-                    print("codingPath:", context.codingPath)
-                case .typeMismatch(let type, let context):
-                    print("Type '\(type)' mismatch:", context.debugDescription)
-                    print("codingPath:", context.codingPath)
-                case .valueNotFound(let type, let context):
-                    print("Value '\(type)' not found:", context.debugDescription)
-                    print("codingPath:", context.codingPath)
-                case .dataCorrupted(let context):
-                    print("Data corrupted:", context.debugDescription)
-                    print("codingPath:", context.codingPath)
-                @unknown default:
-                    print("Unknown decoding error")
-                }
-            }
-            throw error
+        guard let episodes = podcast.media.episodes else {
+            return []
         }
+
+        // Sort episodes by published date, newest first
+        let sortedEpisodes = episodes.sorted { episode1, episode2 in
+            guard let date1 = episode1.publishedDate,
+                  let date2 = episode2.publishedDate else {
+                return false
+            }
+            return date1 > date2
+        }
+
+        return sortedEpisodes
     }
 
     // MARK: - Cover Images

@@ -160,8 +160,13 @@ struct MiniPlayerView: View {
                 }
 
                 // Progress bar
-                ProgressView(value: viewModel.audioPlayer.currentTime, total: viewModel.audioPlayer.duration)
-                    .tint(.blue)
+                if viewModel.audioPlayer.duration > 0 {
+                    ProgressView(value: viewModel.audioPlayer.currentTime, total: viewModel.audioPlayer.duration)
+                        .tint(.blue)
+                } else {
+                    ProgressView(value: 0, total: 1)
+                        .tint(.blue)
+                }
 
                 // Time labels
                 HStack {
