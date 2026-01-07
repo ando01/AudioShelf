@@ -10,6 +10,7 @@ import SwiftUI
 struct PodcastListView: View {
     @State private var viewModel = PodcastListViewModel()
     @Binding var isLoggedIn: Bool
+    var audioPlayer: AudioPlayer
 
     var body: some View {
         NavigationStack {
@@ -38,7 +39,7 @@ struct PodcastListView: View {
                     List {
                         ForEach(viewModel.podcasts) { podcast in
                             NavigationLink {
-                                EpisodeDetailView(podcast: podcast)
+                                EpisodeDetailView(podcast: podcast, audioPlayer: audioPlayer)
                             } label: {
                                 PodcastRow(podcast: podcast)
                             }
@@ -144,5 +145,5 @@ struct PodcastRow: View {
 }
 
 #Preview {
-    PodcastListView(isLoggedIn: .constant(true))
+    PodcastListView(isLoggedIn: .constant(true), audioPlayer: AudioPlayer())
 }

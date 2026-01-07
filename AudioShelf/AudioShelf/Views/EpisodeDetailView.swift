@@ -9,13 +9,19 @@ import SwiftUI
 
 struct EpisodeDetailView: View {
     let podcast: Podcast
-    @State private var viewModel = EpisodeDetailViewModel()
+    var audioPlayer: AudioPlayer
+    @State private var viewModel: EpisodeDetailViewModel
     @State private var expandedEpisodeId: String?
 
+    init(podcast: Podcast, audioPlayer: AudioPlayer) {
+        self.podcast = podcast
+        self.audioPlayer = audioPlayer
+        self._viewModel = State(initialValue: EpisodeDetailViewModel(audioPlayer: audioPlayer, podcast: podcast))
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Episode list
-            Group {
+        // Episode list
+        Group {
                 if viewModel.isLoading && viewModel.episodes.isEmpty {
                     ProgressView("Loading episodes...")
                 } else if let errorMessage = viewModel.errorMessage {
@@ -52,12 +58,6 @@ struct EpisodeDetailView: View {
                     }
                     .listStyle(.plain)
                 }
-            }
-
-            // Audio player controls (shown when playing)
-            if viewModel.audioPlayer.currentEpisode != nil {
-                MiniPlayerView(viewModel: viewModel)
-            }
         }
         .navigationTitle(podcast.title)
         .navigationBarTitleDisplayMode(.large)
@@ -144,101 +144,26 @@ struct EpisodeRow: View {
     }
 }
 
-struct MiniPlayerView: View {
-    @Bindable var viewModel: EpisodeDetailViewModel
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Divider()
-
-            VStack(spacing: 12) {
-                if let episode = viewModel.audioPlayer.currentEpisode {
-                    Text(episode.displayTitle)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
-                }
-
-                // Progress bar
-                ProgressView(value: viewModel.audioPlayer.currentTime, total: viewModel.audioPlayer.duration)
-                    .tint(.blue)
-
-                // Time labels
-                HStack {
-                    Text(formatTime(viewModel.audioPlayer.currentTime))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(formatTime(viewModel.audioPlayer.duration))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                // Controls
-                HStack(spacing: 40) {
-                    Button {
-                        viewModel.audioPlayer.seek(to: max(0, viewModel.audioPlayer.currentTime - 15))
-                    } label: {
-                        Image(systemName: "gobackward.15")
-                            .font(.title2)
-                    }
-
-                    Button {
-                        viewModel.togglePlayPause()
-                    } label: {
-                        Image(systemName: viewModel.audioPlayer.isPlaying ? "pause.circle.fill" : "play.circle.fill")
-                            .font(.system(size: 44))
-                    }
-
-                    Button {
-                        let newTime = viewModel.audioPlayer.currentTime + 30
-                        // Only limit by duration if duration is loaded
-                        let seekTime = viewModel.audioPlayer.duration > 0
-                            ? min(viewModel.audioPlayer.duration, newTime)
-                            : newTime
-                        viewModel.audioPlayer.seek(to: seekTime)
-                    } label: {
-                        Image(systemName: "goforward.30")
-                            .font(.title2)
-                    }
-                }
-            }
-            .padding()
-            .background(.regularMaterial)
-        }
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-        guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
-        let hours = Int(seconds) / 3600
-        let minutes = Int(seconds) / 60 % 60
-        let secs = Int(seconds) % 60
-
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        } else {
-            return String(format: "%d:%02d", minutes, secs)
-        }
-    }
-}
-
 #Preview {
     NavigationStack {
-        EpisodeDetailView(podcast: Podcast(
-            id: "1",
-            media: PodcastMedia(
-                metadata: PodcastMetadata(
-                    title: "Sample Podcast",
-                    author: "Sample Author",
-                    description: nil,
-                    imageUrl: nil,
-                    genres: nil
+        EpisodeDetailView(
+            podcast: Podcast(
+                id: "1",
+                media: PodcastMedia(
+                    metadata: PodcastMetadata(
+                        title: "Sample Podcast",
+                        author: "Sample Author",
+                        description: nil,
+                        imageUrl: nil,
+                        genres: nil
+                    ),
+                    episodes: nil
                 ),
-                episodes: nil
+                mediaType: "podcast",
+                addedAt: 0,
+                recentEpisode: nil
             ),
-            mediaType: "podcast",
-            addedAt: 0,
-            recentEpisode: nil
-        ))
+            audioPlayer: AudioPlayer()
+        )
     }
 }

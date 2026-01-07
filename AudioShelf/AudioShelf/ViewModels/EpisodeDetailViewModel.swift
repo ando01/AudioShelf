@@ -13,9 +13,15 @@ class EpisodeDetailViewModel {
     var selectedEpisode: Episode?
     var isLoading = false
     var errorMessage: String?
-    var audioPlayer = AudioPlayer()
+    var audioPlayer: AudioPlayer
+    var podcast: Podcast
 
     private let api = AudioBookshelfAPI.shared
+
+    init(audioPlayer: AudioPlayer, podcast: Podcast) {
+        self.audioPlayer = audioPlayer
+        self.podcast = podcast
+    }
 
     func loadEpisodes(for podcastId: String) async {
         isLoading = true
@@ -64,7 +70,7 @@ class EpisodeDetailViewModel {
         }
 
         selectedEpisode = episode
-        audioPlayer.play(episode: episode, audioURL: audioURL)
+        audioPlayer.play(episode: episode, audioURL: audioURL, podcast: podcast)
     }
 
     func togglePlayPause() {

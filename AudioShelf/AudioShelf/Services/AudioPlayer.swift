@@ -9,6 +9,7 @@ import AVFoundation
 import Combine
 import Foundation
 import MediaPlayer
+import UIKit
 
 @Observable
 class AudioPlayer {
@@ -19,17 +20,19 @@ class AudioPlayer {
     var currentTime: Double = 0
     var duration: Double = 0
     var currentEpisode: Episode?
+    var currentPodcast: Podcast?
 
     init() {
         configureAudioSession()
         setupRemoteCommandCenter()
     }
 
-    func play(episode: Episode, audioURL: URL) {
+    func play(episode: Episode, audioURL: URL, podcast: Podcast? = nil) {
         // If playing a different episode, create new player
         if currentEpisode?.id != episode.id {
             stop()
             currentEpisode = episode
+            currentPodcast = podcast
 
             // Debug: Check what duration we have
             print("DEBUG: Episode title: \(episode.displayTitle)")
@@ -69,6 +72,12 @@ class AudioPlayer {
         updateNowPlayingInfo()
     }
 
+    func resume() {
+        player?.play()
+        isPlaying = true
+        updateNowPlayingInfo()
+    }
+
     func stop() {
         player?.pause()
         if let timeObserver = timeObserver {
@@ -79,6 +88,7 @@ class AudioPlayer {
         currentTime = 0
         duration = 0
         currentEpisode = nil
+        currentPodcast = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -203,12 +213,65 @@ class AudioPlayer {
             MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
         ]
 
-        // Add artwork if available (using a placeholder for now)
-        if let image = UIImage(systemName: "mic.fill") {
-            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+        // Add podcast title as album/artist
+        if let podcast = currentPodcast {
+            nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = podcast.title
+            nowPlayingInfo[MPMediaItemPropertyArtist] = podcast.author
+        }
+
+        // Add artwork - get app icon
+        if let appIcon = getAppIcon() {
+            let artwork = MPMediaItemArtwork(boundsSize: appIcon.size) { _ in appIcon }
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    private func getAppIcon() -> UIImage? {
+        // Try to get the app icon from the bundle
+        // Method 1: Check if the icon files exist in the bundle root
+        if let iconPath = Bundle.main.path(forResource: "AppIcon60x60@3x", ofType: "png"),
+           let icon = UIImage(contentsOfFile: iconPath) {
+            return icon
+        }
+
+        // Method 2: Try to access icons directory
+        if let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+           let primaryIcon = icons["CFBundlePrimaryIcon"] as? [String: Any],
+           let iconFiles = primaryIcon["CFBundleIconFiles"] as? [String],
+           let iconName = iconFiles.last,
+           let icon = UIImage(named: iconName) {
+            return icon
+        }
+
+        // Method 3: Create a simple placeholder with app color
+        let size = CGSize(width: 512, height: 512)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            // Blue background (AudioShelf theme color)
+            UIColor(red: 0, green: 0.48, blue: 1.0, alpha: 1.0).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+
+            // Add "AS" text
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 200, weight: .bold),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: paragraphStyle
+            ]
+
+            let text = "AS"
+            let textSize = text.size(withAttributes: attrs)
+            let textRect = CGRect(
+                x: (size.width - textSize.width) / 2,
+                y: (size.height - textSize.height) / 2,
+                width: textSize.width,
+                height: textSize.height
+            )
+            text.draw(in: textRect, withAttributes: attrs)
+        }
     }
 }
