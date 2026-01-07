@@ -236,7 +236,8 @@ struct MiniPlayerView: View {
                 episodes: nil
             ),
             mediaType: "podcast",
-            addedAt: 0
+            addedAt: 0,
+            recentEpisode: nil
         ))
     }
 }

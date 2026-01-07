@@ -116,8 +116,7 @@ class AudioBookshelfAPI {
         var components = URLComponents(string: "\(serverURL)/api/libraries/\(libraryId)/items")
         components?.queryItems = [
             URLQueryItem(name: "sort", value: "addedAt"),
-            URLQueryItem(name: "desc", value: "1"),
-            URLQueryItem(name: "include", value: "rssfeed")  // Include episode data
+            URLQueryItem(name: "desc", value: "1")
         ]
 
         guard let url = components?.url else {
@@ -135,20 +134,35 @@ class AudioBookshelfAPI {
         }
 
         let podcastsResponse = try JSONDecoder().decode(PodcastsResponse.self, from: data)
+        print("DEBUG: Fetched \(podcastsResponse.results.count) podcasts from list")
 
-        // Debug: Check if we're getting episode data
-        print("DEBUG: Fetched \(podcastsResponse.results.count) podcasts")
-        for (index, podcast) in podcastsResponse.results.prefix(3).enumerated() {
-            print("DEBUG: Podcast \(index): \(podcast.title)")
-            print("  - recentEpisode: \(podcast.recentEpisode?.displayTitle ?? "nil")")
-            print("  - recentEpisode date: \(podcast.recentEpisode?.publishedDate?.description ?? "nil")")
-            print("  - Episodes count: \(podcast.media.episodes?.count ?? 0)")
-            print("  - Latest episode date: \(podcast.latestEpisodeDate?.description ?? "nil")")
-            print("  - Added at: \(podcast.addedAt)")
+        // Fetch full details for each podcast to get episode data
+        // Do this in parallel for better performance
+        let podcastsWithEpisodes = await withTaskGroup(of: Podcast?.self, returning: [Podcast].self) { group in
+            for podcast in podcastsResponse.results {
+                group.addTask {
+                    do {
+                        return try await self.getPodcastWithEpisodes(podcastId: podcast.id)
+                    } catch {
+                        print("Failed to fetch episodes for \(podcast.title): \(error)")
+                        return podcast  // Return original podcast without episodes
+                    }
+                }
+            }
+
+            var results: [Podcast] = []
+            for await podcast in group {
+                if let podcast = podcast {
+                    results.append(podcast)
+                }
+            }
+            return results
         }
 
+        print("DEBUG: Fetched full details for \(podcastsWithEpisodes.count) podcasts")
+
         // Sort podcasts by latest episode published date, newest first
-        let sortedPodcasts = podcastsResponse.results.sorted { podcast1, podcast2 in
+        let sortedPodcasts = podcastsWithEpisodes.sorted { podcast1, podcast2 in
             // If both have episode dates, compare them
             if let date1 = podcast1.latestEpisodeDate,
                let date2 = podcast2.latestEpisodeDate {
@@ -167,10 +181,39 @@ class AudioBookshelfAPI {
 
         print("DEBUG: After sorting, first 3 podcasts:")
         for (index, podcast) in sortedPodcasts.prefix(3).enumerated() {
-            print("  \(index). \(podcast.title) - Latest episode: \(podcast.latestEpisodeDate?.description ?? "nil")")
+            if let date = podcast.latestEpisodeDate {
+                let formatter = DateFormatter()
+                formatter.dateStyle = .medium
+                print("  \(index). \(podcast.title) - Latest: \(formatter.string(from: date))")
+            } else {
+                print("  \(index). \(podcast.title) - Latest: nil")
+            }
         }
 
         return sortedPodcasts
+    }
+
+    // Helper to fetch full podcast details with episodes
+    private func getPodcastWithEpisodes(podcastId: String) async throws -> Podcast {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        guard let url = URL(string: "\(serverURL)/api/items/\(podcastId)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              httpResponse.statusCode == 200 else {
+            throw APIError.invalidResponse
+        }
+
+        return try JSONDecoder().decode(Podcast.self, from: data)
     }
 
     // MARK: - Episodes
