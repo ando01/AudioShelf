@@ -61,8 +61,9 @@ class AudioPlayer {
 
     func seek(to time: Double) {
         let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
-        player?.seek(to: cmTime)
-        currentTime = time
+        // Seek with no tolerance for accurate positioning
+        player?.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        // Don't manually set currentTime - let the time observer update it naturally
     }
 
     private func observeDuration() {
