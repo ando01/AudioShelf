@@ -13,16 +13,30 @@ struct EpisodesResponse: Codable {
 
 struct Episode: Codable, Identifiable {
     let id: String
-    let title: String
+    let title: String?
     let description: String?
-    let publishedAt: String?  // ISO 8601 date string
+    let publishedAt: String?  // ISO 8601 date string or timestamp
     let duration: Double?
     let audioFile: AudioFile?
 
+    // Additional fields that might be present
+    let enclosure: Enclosure?
+
     var publishedDate: Date? {
         guard let publishedAt = publishedAt else { return nil }
+
+        // Try parsing as timestamp (milliseconds)
+        if let timestamp = Double(publishedAt) {
+            return Date(timeIntervalSince1970: timestamp / 1000.0)
+        }
+
+        // Try parsing as ISO 8601 string
         let formatter = ISO8601DateFormatter()
         return formatter.date(from: publishedAt)
+    }
+
+    var displayTitle: String {
+        title ?? "Untitled Episode"
     }
 
     var formattedPublishedDate: String {
@@ -62,4 +76,9 @@ struct Episode: Codable, Identifiable {
 
 struct AudioFile: Codable {
     let contentUrl: String?
+}
+
+struct Enclosure: Codable {
+    let url: String?
+    let type: String?
 }

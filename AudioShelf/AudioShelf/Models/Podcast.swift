@@ -28,6 +28,12 @@ struct Podcast: Codable, Identifiable {
     var author: String {
         media.metadata.author ?? "Unknown Author"
     }
+
+    // Get the most recent episode's published date for sorting
+    var latestEpisodeDate: Date? {
+        guard let episodes = media.episodes else { return nil }
+        return episodes.compactMap { $0.publishedDate }.max()
+    }
 }
 
 struct PodcastMedia: Codable {

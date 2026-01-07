@@ -80,7 +80,7 @@ struct EpisodeRow: View {
             Button(action: onTap) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(episode.title)
+                        Text(episode.displayTitle)
                             .font(.headline)
                             .lineLimit(isExpanded ? nil : 2)
                             .multilineTextAlignment(.leading)
@@ -153,7 +153,7 @@ struct MiniPlayerView: View {
 
             VStack(spacing: 12) {
                 if let episode = viewModel.audioPlayer.currentEpisode {
-                    Text(episode.title)
+                    Text(episode.displayTitle)
                         .font(.subheadline)
                         .fontWeight(.medium)
                         .lineLimit(1)

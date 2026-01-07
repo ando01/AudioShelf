@@ -116,7 +116,8 @@ class AudioBookshelfAPI {
         var components = URLComponents(string: "\(serverURL)/api/libraries/\(libraryId)/items")
         components?.queryItems = [
             URLQueryItem(name: "sort", value: "addedAt"),
-            URLQueryItem(name: "desc", value: "1")
+            URLQueryItem(name: "desc", value: "1"),
+            URLQueryItem(name: "include", value: "rssfeed")  // Include episode data
         ]
 
         guard let url = components?.url else {
@@ -135,8 +136,24 @@ class AudioBookshelfAPI {
 
         let podcastsResponse = try JSONDecoder().decode(PodcastsResponse.self, from: data)
 
-        // Sort podcasts by addedAt, newest first (client-side sorting as backup)
-        let sortedPodcasts = podcastsResponse.results.sorted { $0.addedAt > $1.addedAt }
+        // Sort podcasts by latest episode published date, newest first
+        let sortedPodcasts = podcastsResponse.results.sorted { podcast1, podcast2 in
+            // If both have episode dates, compare them
+            if let date1 = podcast1.latestEpisodeDate,
+               let date2 = podcast2.latestEpisodeDate {
+                return date1 > date2
+            }
+            // If only one has a date, it goes first
+            if podcast1.latestEpisodeDate != nil {
+                return true
+            }
+            if podcast2.latestEpisodeDate != nil {
+                return false
+            }
+            // If neither has dates, fall back to addedAt
+            return podcast1.addedAt > podcast2.addedAt
+        }
+
         return sortedPodcasts
     }
 
@@ -162,23 +179,53 @@ class AudioBookshelfAPI {
             throw APIError.invalidResponse
         }
 
+        // Debug: Print the raw JSON to help diagnose decoding issues
+        if let jsonString = String(data: data, encoding: .utf8) {
+            print("Raw JSON response for podcast \(podcastId):")
+            print(jsonString.prefix(500))  // Print first 500 characters
+        }
+
         // Decode the full podcast item which contains episodes in media.episodes
-        let podcast = try JSONDecoder().decode(Podcast.self, from: data)
+        do {
+            let podcast = try JSONDecoder().decode(Podcast.self, from: data)
 
-        guard let episodes = podcast.media.episodes else {
-            return []
-        }
-
-        // Sort episodes by published date, newest first
-        let sortedEpisodes = episodes.sorted { episode1, episode2 in
-            guard let date1 = episode1.publishedDate,
-                  let date2 = episode2.publishedDate else {
-                return false
+            guard let episodes = podcast.media.episodes else {
+                print("No episodes found in podcast data")
+                return []
             }
-            return date1 > date2
-        }
 
-        return sortedEpisodes
+            // Sort episodes by published date, newest first
+            let sortedEpisodes = episodes.sorted { episode1, episode2 in
+                guard let date1 = episode1.publishedDate,
+                      let date2 = episode2.publishedDate else {
+                    return false
+                }
+                return date1 > date2
+            }
+
+            return sortedEpisodes
+        } catch {
+            print("Decoding error: \(error)")
+            if let decodingError = error as? DecodingError {
+                switch decodingError {
+                case .keyNotFound(let key, let context):
+                    print("Key '\(key)' not found:", context.debugDescription)
+                    print("codingPath:", context.codingPath)
+                case .typeMismatch(let type, let context):
+                    print("Type '\(type)' mismatch:", context.debugDescription)
+                    print("codingPath:", context.codingPath)
+                case .valueNotFound(let type, let context):
+                    print("Value '\(type)' not found:", context.debugDescription)
+                    print("codingPath:", context.codingPath)
+                case .dataCorrupted(let context):
+                    print("Data corrupted:", context.debugDescription)
+                    print("codingPath:", context.codingPath)
+                @unknown default:
+                    print("Unknown decoding error")
+                }
+            }
+            throw error
+        }
     }
 
     // MARK: - Cover Images
