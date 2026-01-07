@@ -11,11 +11,11 @@ struct EpisodesResponse: Codable {
     let episodes: [Episode]
 }
 
-struct Episode: Codable, Identifiable {
+struct Episode: Identifiable {
     let id: String
     let title: String?
     let description: String?
-    let publishedAt: String?  // ISO 8601 date string or timestamp
+    let publishedAt: Double?  // Timestamp in milliseconds
     let duration: Double?
     let audioFile: AudioFile?
 
@@ -24,21 +24,62 @@ struct Episode: Codable, Identifiable {
 
     var publishedDate: Date? {
         guard let publishedAt = publishedAt else { return nil }
-
-        // Try parsing as timestamp (milliseconds)
-        if let timestamp = Double(publishedAt) {
-            return Date(timeIntervalSince1970: timestamp / 1000.0)
-        }
-
-        // Try parsing as ISO 8601 string
-        let formatter = ISO8601DateFormatter()
-        return formatter.date(from: publishedAt)
+        // Convert from milliseconds to seconds
+        return Date(timeIntervalSince1970: publishedAt / 1000.0)
     }
 
     var displayTitle: String {
         title ?? "Untitled Episode"
     }
 
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, publishedAt, duration, audioFile, enclosure
+    }
+}
+
+extension Episode: Codable {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        id = try container.decode(String.self, forKey: .id)
+        title = try? container.decode(String.self, forKey: .title)
+        description = try? container.decode(String.self, forKey: .description)
+        duration = try? container.decode(Double.self, forKey: .duration)
+        audioFile = try? container.decode(AudioFile.self, forKey: .audioFile)
+        enclosure = try? container.decode(Enclosure.self, forKey: .enclosure)
+
+        // Handle publishedAt as either number or string
+        if let timestamp = try? container.decode(Double.self, forKey: .publishedAt) {
+            publishedAt = timestamp
+        } else if let timestampInt = try? container.decode(Int.self, forKey: .publishedAt) {
+            publishedAt = Double(timestampInt)
+        } else if let dateString = try? container.decode(String.self, forKey: .publishedAt) {
+            // Try parsing ISO 8601 string and convert to timestamp
+            let formatter = ISO8601DateFormatter()
+            if let date = formatter.date(from: dateString) {
+                publishedAt = date.timeIntervalSince1970 * 1000.0
+            } else {
+                publishedAt = nil
+            }
+        } else {
+            publishedAt = nil
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(description, forKey: .description)
+        try container.encodeIfPresent(publishedAt, forKey: .publishedAt)
+        try container.encodeIfPresent(duration, forKey: .duration)
+        try container.encodeIfPresent(audioFile, forKey: .audioFile)
+        try container.encodeIfPresent(enclosure, forKey: .enclosure)
+    }
+}
+
+extension Episode {
     var formattedPublishedDate: String {
         guard let date = publishedDate else { return "Unknown date" }
 
