@@ -16,7 +16,7 @@ struct Episode: Identifiable {
     let title: String?
     let description: String?
     let publishedAt: Double?  // Timestamp in milliseconds
-    let duration: Double?
+    let duration: Double?  // Top-level duration (usually nil for podcasts)
     let audioFile: AudioFile?
 
     // Additional fields that might be present
@@ -30,6 +30,14 @@ struct Episode: Identifiable {
 
     var displayTitle: String {
         title ?? "Untitled Episode"
+    }
+
+    // Get duration from audioFile if top-level duration is not available
+    var durationSeconds: Double? {
+        if let duration = duration, duration > 0 {
+            return duration
+        }
+        return audioFile?.durationSeconds
     }
 
     enum CodingKeys: String, CodingKey {
@@ -91,7 +99,7 @@ extension Episode {
     }
 
     var formattedDuration: String {
-        guard let duration = duration else { return "" }
+        guard let duration = durationSeconds else { return "" }
         let hours = Int(duration) / 3600
         let minutes = Int(duration) / 60 % 60
         let seconds = Int(duration) % 60
@@ -106,6 +114,12 @@ extension Episode {
 
 struct AudioFile: Codable {
     let contentUrl: String?
+    let duration: String?  // Duration as string like "1432.32"
+
+    var durationSeconds: Double? {
+        guard let duration = duration else { return nil }
+        return Double(duration)
+    }
 }
 
 struct Enclosure: Codable {

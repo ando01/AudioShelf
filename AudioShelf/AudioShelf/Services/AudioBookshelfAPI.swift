@@ -238,6 +238,19 @@ class AudioBookshelfAPI {
             throw APIError.invalidResponse
         }
 
+        // Debug: Print raw JSON for first episode
+        if let jsonString = String(data: data, encoding: .utf8),
+           let jsonData = jsonString.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+           let media = json["media"] as? [String: Any],
+           let episodes = media["episodes"] as? [[String: Any]],
+           let firstEpisode = episodes.first {
+            print("DEBUG: First episode ALL fields:")
+            for (key, value) in firstEpisode {
+                print("  - \(key): \(value)")
+            }
+        }
+
         // Decode the full podcast item which contains episodes in media.episodes
         let podcast = try JSONDecoder().decode(Podcast.self, from: data)
 

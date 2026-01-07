@@ -25,10 +25,17 @@ class AudioPlayer {
             stop()
             currentEpisode = episode
 
+            // Debug: Check what duration we have
+            print("DEBUG: Episode title: \(episode.displayTitle)")
+            print("DEBUG: Episode.durationSeconds value: \(episode.durationSeconds?.description ?? "nil")")
+            print("DEBUG: Episode.formattedDuration: \(episode.formattedDuration)")
+
             // Set duration from episode metadata immediately (more reliable than AVPlayer)
-            if let episodeDuration = episode.duration, episodeDuration > 0 {
+            if let episodeDuration = episode.durationSeconds, episodeDuration > 0 {
                 self.duration = episodeDuration
-                print("Using episode duration from metadata: \(episodeDuration) seconds")
+                print("✅ Using episode duration from metadata: \(episodeDuration) seconds")
+            } else {
+                print("⚠️ Episode duration is nil or 0, waiting for AVPlayer...")
             }
 
             let playerItem = AVPlayerItem(url: audioURL)
