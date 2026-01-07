@@ -60,20 +60,46 @@ class AudioPlayer {
     }
 
     func seek(to time: Double) {
+        print("DEBUG SEEK: Attempting to seek to \(time) seconds")
+        print("  - Current time: \(currentTime)")
+        print("  - Duration: \(duration)")
+
+        guard time >= 0 && !time.isNaN && !time.isInfinite else {
+            print("  - ERROR: Invalid seek time!")
+            return
+        }
+
         let cmTime = CMTime(seconds: time, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         // Seek with no tolerance for accurate positioning
         player?.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
         // Don't manually set currentTime - let the time observer update it naturally
+
+        print("  - Seek command sent")
     }
 
     private func observeDuration() {
         guard let currentItem = player?.currentItem else { return }
 
-        // Observe duration
+        // Observe duration changes
         Task { @MainActor in
             for await _ in currentItem.publisher(for: \.status).values {
                 if currentItem.status == .readyToPlay {
-                    self.duration = currentItem.duration.seconds
+                    let itemDuration = currentItem.duration.seconds
+                    if !itemDuration.isNaN && !itemDuration.isInfinite && itemDuration > 0 {
+                        self.duration = itemDuration
+                        print("Duration loaded: \(itemDuration) seconds")
+                    }
+                }
+            }
+        }
+
+        // Also observe duration directly in case it becomes available later
+        Task { @MainActor in
+            for await _ in currentItem.publisher(for: \.duration).values {
+                let itemDuration = currentItem.duration.seconds
+                if !itemDuration.isNaN && !itemDuration.isInfinite && itemDuration > 0 {
+                    self.duration = itemDuration
+                    print("Duration updated: \(itemDuration) seconds")
                 }
             }
         }

@@ -196,7 +196,12 @@ struct MiniPlayerView: View {
                     }
 
                     Button {
-                        viewModel.audioPlayer.seek(to: min(viewModel.audioPlayer.duration, viewModel.audioPlayer.currentTime + 30))
+                        let newTime = viewModel.audioPlayer.currentTime + 30
+                        // Only limit by duration if duration is loaded
+                        let seekTime = viewModel.audioPlayer.duration > 0
+                            ? min(viewModel.audioPlayer.duration, newTime)
+                            : newTime
+                        viewModel.audioPlayer.seek(to: seekTime)
                     } label: {
                         Image(systemName: "goforward.30")
                             .font(.title2)
