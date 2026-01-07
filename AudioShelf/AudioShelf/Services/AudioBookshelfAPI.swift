@@ -134,7 +134,6 @@ class AudioBookshelfAPI {
         }
 
         let podcastsResponse = try JSONDecoder().decode(PodcastsResponse.self, from: data)
-        print("DEBUG: Fetched \(podcastsResponse.results.count) podcasts from list")
 
         // Fetch full details for each podcast to get episode data
         // Do this in parallel for better performance
@@ -159,8 +158,6 @@ class AudioBookshelfAPI {
             return results
         }
 
-        print("DEBUG: Fetched full details for \(podcastsWithEpisodes.count) podcasts")
-
         // Sort podcasts by latest episode published date, newest first
         let sortedPodcasts = podcastsWithEpisodes.sorted { podcast1, podcast2 in
             // If both have episode dates, compare them
@@ -177,17 +174,6 @@ class AudioBookshelfAPI {
             }
             // If neither has dates, fall back to addedAt
             return podcast1.addedAt > podcast2.addedAt
-        }
-
-        print("DEBUG: After sorting, first 3 podcasts:")
-        for (index, podcast) in sortedPodcasts.prefix(3).enumerated() {
-            if let date = podcast.latestEpisodeDate {
-                let formatter = DateFormatter()
-                formatter.dateStyle = .medium
-                print("  \(index). \(podcast.title) - Latest: \(formatter.string(from: date))")
-            } else {
-                print("  \(index). \(podcast.title) - Latest: nil")
-            }
         }
 
         return sortedPodcasts
@@ -236,19 +222,6 @@ class AudioBookshelfAPI {
         guard let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200 else {
             throw APIError.invalidResponse
-        }
-
-        // Debug: Print raw JSON for first episode
-        if let jsonString = String(data: data, encoding: .utf8),
-           let jsonData = jsonString.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-           let media = json["media"] as? [String: Any],
-           let episodes = media["episodes"] as? [[String: Any]],
-           let firstEpisode = episodes.first {
-            print("DEBUG: First episode ALL fields:")
-            for (key, value) in firstEpisode {
-                print("  - \(key): \(value)")
-            }
         }
 
         // Decode the full podcast item which contains episodes in media.episodes

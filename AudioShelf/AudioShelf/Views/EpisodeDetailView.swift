@@ -117,13 +117,6 @@ struct EpisodeRow: View {
             if isExpanded {
                 Divider()
 
-                if let description = episode.description, !description.isEmpty {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .padding(.vertical, 4)
-                }
-
                 Button {
                     onPlay()
                 } label: {
@@ -138,6 +131,13 @@ struct EpisodeRow: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 4)
+
+                if let description = episode.description, !description.isEmpty {
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 4)
+                }
             }
         }
         .padding(.vertical, 8)
@@ -160,13 +160,8 @@ struct MiniPlayerView: View {
                 }
 
                 // Progress bar
-                if viewModel.audioPlayer.duration > 0 {
-                    ProgressView(value: viewModel.audioPlayer.currentTime, total: viewModel.audioPlayer.duration)
-                        .tint(.blue)
-                } else {
-                    ProgressView(value: 0, total: 1)
-                        .tint(.blue)
-                }
+                ProgressView(value: viewModel.audioPlayer.currentTime, total: viewModel.audioPlayer.duration)
+                    .tint(.blue)
 
                 // Time labels
                 HStack {
@@ -236,7 +231,8 @@ struct MiniPlayerView: View {
                     title: "Sample Podcast",
                     author: "Sample Author",
                     description: nil,
-                    imageUrl: nil
+                    imageUrl: nil,
+                    genres: nil
                 ),
                 episodes: nil
             ),

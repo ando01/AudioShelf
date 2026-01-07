@@ -53,16 +53,7 @@ extension Episode: Codable {
         title = try? container.decode(String.self, forKey: .title)
         description = try? container.decode(String.self, forKey: .description)
         duration = try? container.decode(Double.self, forKey: .duration)
-
-        // Try to decode audioFile and log if it fails
-        if let decodedAudioFile = try? container.decode(AudioFile.self, forKey: .audioFile) {
-            audioFile = decodedAudioFile
-            print("DEBUG DECODE: AudioFile decoded - duration: \(decodedAudioFile.duration ?? "nil")")
-        } else {
-            audioFile = nil
-            print("DEBUG DECODE: AudioFile failed to decode")
-        }
-
+        audioFile = try? container.decode(AudioFile.self, forKey: .audioFile)
         enclosure = try? container.decode(Enclosure.self, forKey: .enclosure)
 
         // Handle publishedAt as either number or string
@@ -121,28 +112,29 @@ extension Episode {
     }
 }
 
-struct AudioFile {
-    let duration: String?  // Duration as string like "1432.32"
+struct AudioFile: Codable {
+    let duration: Double?  // Duration in seconds
 
     var durationSeconds: Double? {
-        guard let duration = duration else { return nil }
-        return Double(duration)
+        return duration
     }
-}
 
-extension AudioFile: Codable {
     enum CodingKeys: String, CodingKey {
         case duration
     }
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        duration = try? container.decode(String.self, forKey: .duration)
-    }
 
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encodeIfPresent(duration, forKey: .duration)
+        // Try to decode duration as Double first (most common), then as String
+        if let durationDouble = try? container.decode(Double.self, forKey: .duration) {
+            duration = durationDouble
+        } else if let durationString = try? container.decode(String.self, forKey: .duration),
+                  let durationDouble = Double(durationString) {
+            duration = durationDouble
+        } else {
+            duration = nil
+        }
     }
 }
 

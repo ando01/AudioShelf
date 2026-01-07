@@ -8,6 +8,7 @@
 import AVFoundation
 import Combine
 import Foundation
+import MediaPlayer
 
 @Observable
 class AudioPlayer {
@@ -18,6 +19,11 @@ class AudioPlayer {
     var currentTime: Double = 0
     var duration: Double = 0
     var currentEpisode: Episode?
+
+    init() {
+        configureAudioSession()
+        setupRemoteCommandCenter()
+    }
 
     func play(episode: Episode, audioURL: URL) {
         // If playing a different episode, create new player
@@ -48,16 +54,19 @@ class AudioPlayer {
             let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
             timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
                 self?.currentTime = time.seconds
+                self?.updateNowPlayingInfo()
             }
         }
 
         player?.play()
         isPlaying = true
+        updateNowPlayingInfo()
     }
 
     func pause() {
         player?.pause()
         isPlaying = false
+        updateNowPlayingInfo()
     }
 
     func stop() {
@@ -70,6 +79,7 @@ class AudioPlayer {
         currentTime = 0
         duration = 0
         currentEpisode = nil
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
     func seek(to time: Double) {
@@ -118,9 +128,87 @@ class AudioPlayer {
                     if self.duration <= 0 {
                         self.duration = itemDuration
                         print("Duration updated from AVPlayer: \(itemDuration) seconds")
+                        self.updateNowPlayingInfo()
                     }
                 }
             }
         }
+    }
+
+    // MARK: - Background Audio & Lock Screen Support
+
+    private func configureAudioSession() {
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.playback, mode: .spokenAudio)
+            try audioSession.setActive(true)
+        } catch {
+            print("Failed to configure audio session: \(error)")
+        }
+    }
+
+    private func setupRemoteCommandCenter() {
+        let commandCenter = MPRemoteCommandCenter.shared()
+
+        // Play command
+        commandCenter.playCommand.isEnabled = true
+        commandCenter.playCommand.addTarget { [weak self] _ in
+            if let episode = self?.currentEpisode {
+                // Resume playback
+                self?.player?.play()
+                self?.isPlaying = true
+                self?.updateNowPlayingInfo()
+            }
+            return .success
+        }
+
+        // Pause command
+        commandCenter.pauseCommand.isEnabled = true
+        commandCenter.pauseCommand.addTarget { [weak self] _ in
+            self?.pause()
+            return .success
+        }
+
+        // Skip forward command (30 seconds)
+        commandCenter.skipForwardCommand.isEnabled = true
+        commandCenter.skipForwardCommand.preferredIntervals = [30]
+        commandCenter.skipForwardCommand.addTarget { [weak self] _ in
+            guard let self = self else { return .commandFailed }
+            let newTime = self.currentTime + 30
+            let seekTime = self.duration > 0 ? min(self.duration, newTime) : newTime
+            self.seek(to: seekTime)
+            return .success
+        }
+
+        // Skip backward command (15 seconds)
+        commandCenter.skipBackwardCommand.isEnabled = true
+        commandCenter.skipBackwardCommand.preferredIntervals = [15]
+        commandCenter.skipBackwardCommand.addTarget { [weak self] _ in
+            guard let self = self else { return .commandFailed }
+            self.seek(to: max(0, self.currentTime - 15))
+            return .success
+        }
+    }
+
+    private func updateNowPlayingInfo() {
+        guard let episode = currentEpisode else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            return
+        }
+
+        var nowPlayingInfo: [String: Any] = [
+            MPMediaItemPropertyTitle: episode.displayTitle,
+            MPMediaItemPropertyPlaybackDuration: duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+        ]
+
+        // Add artwork if available (using a placeholder for now)
+        if let image = UIImage(systemName: "mic.fill") {
+            let artwork = MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
+        }
+
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 }

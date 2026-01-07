@@ -53,6 +53,27 @@ struct PodcastListView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        // Sort options
+                        Menu {
+                            ForEach(SortOption.allCases, id: \.self) { option in
+                                Button {
+                                    viewModel.setSortOption(option)
+                                } label: {
+                                    HStack {
+                                        Text(option.rawValue)
+                                        if option == viewModel.sortOption {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Label("Sort By", systemImage: "arrow.up.arrow.down")
+                        }
+
+                        Divider()
+
+                        // Library selection
                         ForEach(viewModel.libraries.filter { $0.isPodcastLibrary }) { library in
                             Button {
                                 Task {

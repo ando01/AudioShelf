@@ -30,6 +30,10 @@ struct Podcast: Codable, Identifiable {
         media.metadata.author ?? "Unknown Author"
     }
 
+    var primaryGenre: String {
+        media.metadata.genres?.first ?? "No Genre"
+    }
+
     // Get the most recent episode's published date for sorting
     var latestEpisodeDate: Date? {
         // First check recentEpisode from the list API
@@ -52,4 +56,5 @@ struct PodcastMetadata: Codable {
     let author: String?
     let description: String?
     let imageUrl: String?
+    let genres: [String]?  // Tags/genres for the podcast
 }
