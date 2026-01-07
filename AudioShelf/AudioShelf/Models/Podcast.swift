@@ -16,6 +16,7 @@ struct Podcast: Codable, Identifiable {
     let media: PodcastMedia
     let mediaType: String
     let addedAt: Int64
+    let recentEpisode: Episode?  // Most recent episode from AudioBookshelf
 
     var coverImageURL: String? {
         media.metadata.imageUrl
@@ -31,6 +32,11 @@ struct Podcast: Codable, Identifiable {
 
     // Get the most recent episode's published date for sorting
     var latestEpisodeDate: Date? {
+        // First check recentEpisode from the list API
+        if let recentEpisode = recentEpisode {
+            return recentEpisode.publishedDate
+        }
+        // Fall back to episodes array if available
         guard let episodes = media.episodes else { return nil }
         return episodes.compactMap { $0.publishedDate }.max()
     }

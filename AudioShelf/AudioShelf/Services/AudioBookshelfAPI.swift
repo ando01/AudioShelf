@@ -140,6 +140,8 @@ class AudioBookshelfAPI {
         print("DEBUG: Fetched \(podcastsResponse.results.count) podcasts")
         for (index, podcast) in podcastsResponse.results.prefix(3).enumerated() {
             print("DEBUG: Podcast \(index): \(podcast.title)")
+            print("  - recentEpisode: \(podcast.recentEpisode?.displayTitle ?? "nil")")
+            print("  - recentEpisode date: \(podcast.recentEpisode?.publishedDate?.description ?? "nil")")
             print("  - Episodes count: \(podcast.media.episodes?.count ?? 0)")
             print("  - Latest episode date: \(podcast.latestEpisodeDate?.description ?? "nil")")
             print("  - Added at: \(podcast.addedAt)")
