@@ -121,19 +121,28 @@ extension Episode {
     }
 }
 
-struct AudioFile: Codable {
-    let contentUrl: String?
+struct AudioFile {
     let duration: String?  // Duration as string like "1432.32"
-
-    // Define only the fields we care about - Codable will ignore others
-    enum CodingKeys: String, CodingKey {
-        case contentUrl
-        case duration
-    }
 
     var durationSeconds: Double? {
         guard let duration = duration else { return nil }
         return Double(duration)
+    }
+}
+
+extension AudioFile: Codable {
+    enum CodingKeys: String, CodingKey {
+        case duration
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        duration = try? container.decode(String.self, forKey: .duration)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(duration, forKey: .duration)
     }
 }
 

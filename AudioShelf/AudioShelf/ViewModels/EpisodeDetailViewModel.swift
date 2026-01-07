@@ -36,11 +36,9 @@ class EpisodeDetailViewModel {
             return
         }
 
-        // Try audioFile first, then enclosure
+        // Get audio URL from enclosure (audioFile doesn't have contentUrl)
         let audioPath: String
-        if let audioFileUrl = episode.audioFile?.contentUrl {
-            audioPath = audioFileUrl
-        } else if let enclosureUrl = episode.enclosure?.url {
+        if let enclosureUrl = episode.enclosure?.url {
             audioPath = enclosureUrl
         } else {
             errorMessage = "Audio file not available"
