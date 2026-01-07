@@ -136,6 +136,15 @@ class AudioBookshelfAPI {
 
         let podcastsResponse = try JSONDecoder().decode(PodcastsResponse.self, from: data)
 
+        // Debug: Check if we're getting episode data
+        print("DEBUG: Fetched \(podcastsResponse.results.count) podcasts")
+        for (index, podcast) in podcastsResponse.results.prefix(3).enumerated() {
+            print("DEBUG: Podcast \(index): \(podcast.title)")
+            print("  - Episodes count: \(podcast.media.episodes?.count ?? 0)")
+            print("  - Latest episode date: \(podcast.latestEpisodeDate?.description ?? "nil")")
+            print("  - Added at: \(podcast.addedAt)")
+        }
+
         // Sort podcasts by latest episode published date, newest first
         let sortedPodcasts = podcastsResponse.results.sorted { podcast1, podcast2 in
             // If both have episode dates, compare them
@@ -152,6 +161,11 @@ class AudioBookshelfAPI {
             }
             // If neither has dates, fall back to addedAt
             return podcast1.addedAt > podcast2.addedAt
+        }
+
+        print("DEBUG: After sorting, first 3 podcasts:")
+        for (index, podcast) in sortedPodcasts.prefix(3).enumerated() {
+            print("  \(index). \(podcast.title) - Latest episode: \(podcast.latestEpisodeDate?.description ?? "nil")")
         }
 
         return sortedPodcasts

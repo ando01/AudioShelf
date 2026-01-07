@@ -83,22 +83,11 @@ extension Episode {
     var formattedPublishedDate: String {
         guard let date = publishedDate else { return "Unknown date" }
 
-        let now = Date()
-        let calendar = Calendar.current
-        let components = calendar.dateComponents([.day], from: date, to: now)
-
-        // Use relative date for recent episodes (within 7 days)
-        if let days = components.day, days < 7 {
-            let formatter = RelativeDateTimeFormatter()
-            formatter.unitsStyle = .full
-            return "Published: \(formatter.localizedString(for: date, relativeTo: now))"
-        } else {
-            // Use absolute date for older episodes
-            let formatter = DateFormatter()
-            formatter.dateStyle = .medium
-            formatter.timeStyle = .none
-            return "Published: \(formatter.string(from: date))"
-        }
+        // Always show actual date
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "Published: \(formatter.string(from: date))"
     }
 
     var formattedDuration: String {
