@@ -221,12 +221,15 @@ struct MiniPlayerView: View {
     NavigationStack {
         EpisodeDetailView(podcast: Podcast(
             id: "1",
-            media: PodcastMedia(metadata: PodcastMetadata(
-                title: "Sample Podcast",
-                author: "Sample Author",
-                description: nil,
-                imageUrl: nil
-            )),
+            media: PodcastMedia(
+                metadata: PodcastMetadata(
+                    title: "Sample Podcast",
+                    author: "Sample Author",
+                    description: nil,
+                    imageUrl: nil
+                ),
+                episodes: nil
+            ),
             mediaType: "podcast",
             addedAt: 0
         ))
