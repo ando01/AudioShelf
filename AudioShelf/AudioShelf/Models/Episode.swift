@@ -53,7 +53,16 @@ extension Episode: Codable {
         title = try? container.decode(String.self, forKey: .title)
         description = try? container.decode(String.self, forKey: .description)
         duration = try? container.decode(Double.self, forKey: .duration)
-        audioFile = try? container.decode(AudioFile.self, forKey: .audioFile)
+
+        // Try to decode audioFile and log if it fails
+        if let decodedAudioFile = try? container.decode(AudioFile.self, forKey: .audioFile) {
+            audioFile = decodedAudioFile
+            print("DEBUG DECODE: AudioFile decoded - duration: \(decodedAudioFile.duration ?? "nil")")
+        } else {
+            audioFile = nil
+            print("DEBUG DECODE: AudioFile failed to decode")
+        }
+
         enclosure = try? container.decode(Enclosure.self, forKey: .enclosure)
 
         // Handle publishedAt as either number or string
@@ -115,6 +124,12 @@ extension Episode {
 struct AudioFile: Codable {
     let contentUrl: String?
     let duration: String?  // Duration as string like "1432.32"
+
+    // Define only the fields we care about - Codable will ignore others
+    enum CodingKeys: String, CodingKey {
+        case contentUrl
+        case duration
+    }
 
     var durationSeconds: Double? {
         guard let duration = duration else { return nil }
