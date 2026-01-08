@@ -7,6 +7,43 @@
 
 import SwiftUI
 
+// Helper to convert HTML to AttributedString with formatting and clickable links
+extension String {
+    func htmlToAttributedString(colorScheme: ColorScheme) -> AttributedString {
+        guard let data = self.data(using: .utf8) else {
+            return AttributedString(self)
+        }
+
+        let options: [NSAttributedString.DocumentReadingOptionKey: Any] = [
+            .documentType: NSAttributedString.DocumentType.html,
+            .characterEncoding: String.Encoding.utf8.rawValue
+        ]
+
+        if let nsAttributedString = try? NSAttributedString(data: data, options: options, documentAttributes: nil) {
+            // Convert NSAttributedString to AttributedString
+            if var attributedString = try? AttributedString(nsAttributedString, including: \.uiKit) {
+                // Set appropriate text color and font size based on color scheme
+                let textColor: Color = colorScheme == .dark ? .white : .black
+                let fontSize: CGFloat = 22
+
+                // Apply color and font size to all runs
+                for run in attributedString.runs {
+                    // Apply font size to all text
+                    attributedString[run.range].font = .systemFont(ofSize: fontSize)
+
+                    // Only apply text color if it's not a link (preserve link colors)
+                    if run.link == nil {
+                        attributedString[run.range].foregroundColor = textColor
+                    }
+                }
+                return attributedString
+            }
+        }
+
+        return AttributedString(self)
+    }
+}
+
 struct EpisodeDetailView: View {
     let podcast: Podcast
     var audioPlayer: AudioPlayer
@@ -74,6 +111,8 @@ struct EpisodeRow: View {
     let onTap: () -> Void
     let onPlay: () -> Void
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             // Episode title and date
@@ -133,10 +172,12 @@ struct EpisodeRow: View {
                 .padding(.top, 4)
 
                 if let description = episode.description, !description.isEmpty {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    Text(description.htmlToAttributedString(colorScheme: colorScheme))
+                        .font(.system(size: 22))
+                        .lineSpacing(8)
                         .padding(.vertical, 4)
+                        .textSelection(.enabled)
+                        .tint(.blue)
                 }
             }
         }

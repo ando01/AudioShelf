@@ -37,6 +37,17 @@ class EpisodeDetailViewModel {
     }
 
     func playEpisode(_ episode: Episode) {
+        // If this episode is already playing, toggle pause/resume
+        if audioPlayer.currentEpisode?.id == episode.id {
+            if audioPlayer.isPlaying {
+                audioPlayer.pause()
+            } else {
+                audioPlayer.resume()
+            }
+            return
+        }
+
+        // Otherwise, start playing this episode
         guard let serverURL = api.serverURL else {
             errorMessage = "Server URL not available"
             return

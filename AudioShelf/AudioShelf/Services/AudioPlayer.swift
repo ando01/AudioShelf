@@ -22,6 +22,7 @@ class AudioPlayer {
     var duration: Double = 0
     var currentEpisode: Episode?
     var currentPodcast: Podcast?
+    var playbackSpeed: Float = 1.0
 
     init() {
         configureAudioSession()
@@ -70,6 +71,7 @@ class AudioPlayer {
         }
 
         player?.play()
+        player?.rate = playbackSpeed
         isPlaying = true
         updateNowPlayingInfo()
     }
@@ -82,7 +84,16 @@ class AudioPlayer {
 
     func resume() {
         player?.play()
+        player?.rate = playbackSpeed
         isPlaying = true
+        updateNowPlayingInfo()
+    }
+
+    func setPlaybackSpeed(_ speed: Float) {
+        playbackSpeed = speed
+        if isPlaying {
+            player?.rate = speed
+        }
         updateNowPlayingInfo()
     }
 
@@ -172,11 +183,9 @@ class AudioPlayer {
         // Play command
         commandCenter.playCommand.isEnabled = true
         commandCenter.playCommand.addTarget { [weak self] _ in
-            if let episode = self?.currentEpisode {
-                // Resume playback
-                self?.player?.play()
-                self?.isPlaying = true
-                self?.updateNowPlayingInfo()
+            guard let self = self else { return .commandFailed }
+            if self.currentEpisode != nil {
+                self.resume()
             }
             return .success
         }
@@ -207,6 +216,34 @@ class AudioPlayer {
             self.seek(to: max(0, self.currentTime - 15))
             return .success
         }
+
+        // Also map next/previous track to skip forward/backward for AirPods
+        commandCenter.nextTrackCommand.isEnabled = true
+        commandCenter.nextTrackCommand.addTarget { [weak self] _ in
+            guard let self = self else { return .commandFailed }
+            let newTime = self.currentTime + 30
+            let seekTime = self.duration > 0 ? min(self.duration, newTime) : newTime
+            self.seek(to: seekTime)
+            return .success
+        }
+
+        commandCenter.previousTrackCommand.isEnabled = true
+        commandCenter.previousTrackCommand.addTarget { [weak self] _ in
+            guard let self = self else { return .commandFailed }
+            self.seek(to: max(0, self.currentTime - 15))
+            return .success
+        }
+
+        // Change playback position command (for scrubbing)
+        commandCenter.changePlaybackPositionCommand.isEnabled = true
+        commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
+            guard let self = self,
+                  let event = event as? MPChangePlaybackPositionCommandEvent else {
+                return .commandFailed
+            }
+            self.seek(to: event.positionTime)
+            return .success
+        }
     }
 
     private func updateNowPlayingInfo() {
@@ -219,7 +256,7 @@ class AudioPlayer {
             MPMediaItemPropertyTitle: episode.displayTitle,
             MPMediaItemPropertyPlaybackDuration: duration,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? Double(playbackSpeed) : 0.0
         ]
 
         // Add podcast title as album/artist
