@@ -21,9 +21,16 @@ class PodcastListViewModel {
     var isLoading = false
     var errorMessage: String?
     var sortOption: SortOption = .latestEpisode
+    var selectedGenre: String? = nil  // nil means "All Genres"
 
     private let api = AudioBookshelfAPI.shared
     private var allPodcasts: [Podcast] = []  // Store unsorted podcasts
+
+    // Get unique genres from all podcasts
+    var availableGenres: [String] {
+        let genres = Set(allPodcasts.flatMap { $0.media.metadata.genres ?? [] })
+        return genres.sorted()
+    }
 
     func loadLibraries() async {
         isLoading = true
@@ -74,10 +81,23 @@ class PodcastListViewModel {
         applySorting()
     }
 
+    func setGenreFilter(_ genre: String?) {
+        selectedGenre = genre
+        applySorting()
+    }
+
     private func applySorting() {
+        // First filter by genre if one is selected
+        var filteredPodcasts = allPodcasts
+        if let selectedGenre = selectedGenre {
+            filteredPodcasts = allPodcasts.filter { podcast in
+                podcast.media.metadata.genres?.contains(selectedGenre) ?? false
+            }
+        }
+        // Then apply sorting to filtered podcasts
         switch sortOption {
         case .latestEpisode:
-            podcasts = allPodcasts.sorted { podcast1, podcast2 in
+            podcasts = filteredPodcasts.sorted { podcast1, podcast2 in
                 if let date1 = podcast1.latestEpisodeDate,
                    let date2 = podcast2.latestEpisodeDate {
                     return date1 > date2
@@ -91,9 +111,9 @@ class PodcastListViewModel {
                 return podcast1.addedAt > podcast2.addedAt
             }
         case .title:
-            podcasts = allPodcasts.sorted { $0.title.lowercased() < $1.title.lowercased() }
+            podcasts = filteredPodcasts.sorted { $0.title.lowercased() < $1.title.lowercased() }
         case .genre:
-            podcasts = allPodcasts.sorted { podcast1, podcast2 in
+            podcasts = filteredPodcasts.sorted { podcast1, podcast2 in
                 let genre1 = podcast1.primaryGenre.lowercased()
                 let genre2 = podcast2.primaryGenre.lowercased()
                 if genre1 == genre2 {

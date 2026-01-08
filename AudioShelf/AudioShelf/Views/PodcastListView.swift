@@ -52,6 +52,41 @@ struct PodcastListView: View {
             }
             .navigationTitle("Podcasts")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Menu {
+                        Button {
+                            viewModel.setGenreFilter(nil)
+                        } label: {
+                            HStack {
+                                Text("All Genres")
+                                if viewModel.selectedGenre == nil {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        ForEach(viewModel.availableGenres, id: \.self) { genre in
+                            Button {
+                                viewModel.setGenreFilter(genre)
+                            } label: {
+                                HStack {
+                                    Text(genre)
+                                    if viewModel.selectedGenre == genre {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                            Text(viewModel.selectedGenre ?? "All Genres")
+                                .font(.subheadline)
+                        }
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu {
                         // Sort options

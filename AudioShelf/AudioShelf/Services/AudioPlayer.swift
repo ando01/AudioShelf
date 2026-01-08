@@ -15,6 +15,7 @@ import UIKit
 class AudioPlayer {
     private var player: AVPlayer?
     private var timeObserver: Any?
+    private var cachedArtwork: MPMediaItemArtwork?
 
     var isPlaying = false
     var currentTime: Double = 0
@@ -33,6 +34,7 @@ class AudioPlayer {
             stop()
             currentEpisode = episode
             currentPodcast = podcast
+            cachedArtwork = nil  // Clear cached artwork for new episode
 
             // Debug: Check what duration we have
             print("DEBUG: Episode title: \(episode.displayTitle)")
@@ -58,6 +60,12 @@ class AudioPlayer {
             timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
                 self?.currentTime = time.seconds
                 self?.updateNowPlayingInfo()
+            }
+
+            // Load artwork asynchronously once for this episode
+            Task {
+                cachedArtwork = await loadArtwork()
+                updateNowPlayingInfo()
             }
         }
 
@@ -89,6 +97,7 @@ class AudioPlayer {
         duration = 0
         currentEpisode = nil
         currentPodcast = nil
+        cachedArtwork = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -219,13 +228,39 @@ class AudioPlayer {
             nowPlayingInfo[MPMediaItemPropertyArtist] = podcast.author
         }
 
-        // Add artwork - get app icon
-        if let appIcon = getAppIcon() {
-            let artwork = MPMediaItemArtwork(boundsSize: appIcon.size) { _ in appIcon }
+        // Add cached artwork if available
+        if let artwork = cachedArtwork {
             nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
         }
 
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+    }
+
+    private func loadArtwork() async -> MPMediaItemArtwork? {
+        // First try to get podcast cover art
+        if let podcast = currentPodcast,
+           let coverURL = AudioBookshelfAPI.shared.getCoverImageURL(for: podcast) {
+            if let image = await downloadImage(from: coverURL) {
+                return MPMediaItemArtwork(boundsSize: image.size) { _ in image }
+            }
+        }
+
+        // Fall back to app icon
+        if let appIcon = getAppIcon() {
+            return MPMediaItemArtwork(boundsSize: appIcon.size) { _ in appIcon }
+        }
+
+        return nil
+    }
+
+    private func downloadImage(from url: URL) async -> UIImage? {
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            return UIImage(data: data)
+        } catch {
+            print("Failed to download cover art: \(error)")
+            return nil
+        }
     }
 
     private func getAppIcon() -> UIImage? {
