@@ -15,8 +15,10 @@ class EpisodeDetailViewModel {
     var errorMessage: String?
     var audioPlayer: AudioPlayer
     var podcast: Podcast
+    var searchText: String = ""
 
     private let api = AudioBookshelfAPI.shared
+    private var allEpisodes: [Episode] = []
 
     init(audioPlayer: AudioPlayer, podcast: Podcast) {
         self.audioPlayer = audioPlayer
@@ -28,12 +30,42 @@ class EpisodeDetailViewModel {
         errorMessage = nil
 
         do {
-            episodes = try await api.getEpisodes(podcastId: podcastId)
+            allEpisodes = try await api.getEpisodes(podcastId: podcastId)
+            applyFiltering()
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = "Failed to load episodes: \(error.localizedDescription)"
         }
+    }
+
+    func setSearchText(_ text: String) {
+        searchText = text
+        applyFiltering()
+    }
+
+    private func applyFiltering() {
+        var filtered = allEpisodes
+
+        if !searchText.isEmpty {
+            let searchLower = searchText.lowercased()
+            filtered = filtered.filter { episode in
+                // Search title
+                let titleMatch = episode.displayTitle.lowercased().contains(searchLower)
+
+                // Search description (strip HTML tags)
+                let plainDescription = episode.description?.replacingOccurrences(
+                    of: "<[^>]+>",
+                    with: "",
+                    options: .regularExpression
+                ) ?? ""
+                let descMatch = plainDescription.lowercased().contains(searchLower)
+
+                return titleMatch || descMatch
+            }
+        }
+
+        episodes = filtered
     }
 
     func playEpisode(_ episode: Episode) {

@@ -22,6 +22,7 @@ class PodcastListViewModel {
     var errorMessage: String?
     var sortOption: SortOption = .latestEpisode
     var selectedGenre: String? = nil  // nil means "All Genres"
+    var searchText: String = ""
 
     private let api = AudioBookshelfAPI.shared
     private var allPodcasts: [Podcast] = []  // Store unsorted podcasts
@@ -86,11 +87,28 @@ class PodcastListViewModel {
         applySorting()
     }
 
+    func setSearchText(_ text: String) {
+        searchText = text
+        applySorting()
+    }
+
     private func applySorting() {
-        // First filter by genre if one is selected
+        // Start with all podcasts
         var filteredPodcasts = allPodcasts
+
+        // Apply search filter first
+        if !searchText.isEmpty {
+            let searchLower = searchText.lowercased()
+            filteredPodcasts = filteredPodcasts.filter { podcast in
+                podcast.title.lowercased().contains(searchLower) ||
+                podcast.author.lowercased().contains(searchLower) ||
+                (podcast.media.metadata.description?.lowercased().contains(searchLower) ?? false)
+            }
+        }
+
+        // Then apply genre filter
         if let selectedGenre = selectedGenre {
-            filteredPodcasts = allPodcasts.filter { podcast in
+            filteredPodcasts = filteredPodcasts.filter { podcast in
                 podcast.media.metadata.genres?.contains(selectedGenre) ?? false
             }
         }

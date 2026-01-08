@@ -57,47 +57,77 @@ struct EpisodeDetailView: View {
     }
 
     var body: some View {
-        // Episode list
-        Group {
-                if viewModel.isLoading && viewModel.episodes.isEmpty {
+        List {
+            if viewModel.isLoading && viewModel.episodes.isEmpty {
+                HStack {
+                    Spacer()
                     ProgressView("Loading episodes...")
-                } else if let errorMessage = viewModel.errorMessage {
-                    ContentUnavailableView {
-                        Label("Error", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text(errorMessage)
-                    }
-                } else if viewModel.episodes.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Episodes", systemImage: "waveform")
-                    } description: {
-                        Text("No episodes found for this podcast")
-                    }
-                } else {
-                    List {
-                        ForEach(viewModel.episodes) { episode in
-                            EpisodeRow(
-                                episode: episode,
-                                isExpanded: expandedEpisodeId == episode.id,
-                                isPlaying: viewModel.audioPlayer.currentEpisode?.id == episode.id && viewModel.audioPlayer.isPlaying
-                            ) {
-                                withAnimation {
-                                    if expandedEpisodeId == episode.id {
-                                        expandedEpisodeId = nil
-                                    } else {
-                                        expandedEpisodeId = episode.id
-                                    }
-                                }
-                            } onPlay: {
-                                viewModel.playEpisode(episode)
+                    Spacer()
+                }
+            } else if let errorMessage = viewModel.errorMessage {
+                ContentUnavailableView {
+                    Label("Error", systemImage: "exclamationmark.triangle")
+                } description: {
+                    Text(errorMessage)
+                }
+            } else if viewModel.episodes.isEmpty {
+                ContentUnavailableView {
+                    Label("No Episodes", systemImage: "waveform")
+                } description: {
+                    Text("No episodes found for this podcast")
+                }
+            } else {
+                ForEach(viewModel.episodes) { episode in
+                    EpisodeRow(
+                        episode: episode,
+                        isExpanded: expandedEpisodeId == episode.id,
+                        isPlaying: viewModel.audioPlayer.currentEpisode?.id == episode.id && viewModel.audioPlayer.isPlaying
+                    ) {
+                        withAnimation {
+                            if expandedEpisodeId == episode.id {
+                                expandedEpisodeId = nil
+                            } else {
+                                expandedEpisodeId = episode.id
                             }
                         }
+                    } onPlay: {
+                        viewModel.playEpisode(episode)
                     }
-                    .listStyle(.plain)
                 }
+            }
         }
+        .listStyle(.plain)
         .navigationTitle(podcast.title)
         .navigationBarTitleDisplayMode(.large)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                    TextField("Search episodes", text: $viewModel.searchText)
+                        .textFieldStyle(.plain)
+                        .autocorrectionDisabled()
+                    if !viewModel.searchText.isEmpty {
+                        Button {
+                            viewModel.searchText = ""
+                            viewModel.setSearchText("")
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                        }
+                    }
+                }
+                .padding(8)
+                .background(.regularMaterial)
+                .cornerRadius(10)
+                .frame(maxWidth: 400)
+            }
+        }
+        .onChange(of: viewModel.searchText) { _, newValue in
+            viewModel.setSearchText(newValue)
+        }
         .task {
             await viewModel.loadEpisodes(for: podcast.id)
         }
@@ -147,6 +177,23 @@ struct EpisodeRow: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+
+                    // Progress indicator (if episode has been played)
+                    if let progress = PlaybackProgressService.shared.getProgress(episodeId: episode.id),
+                       progress.percentComplete < 0.95 {  // Don't show for completed
+
+                        HStack(spacing: 8) {
+                            ProgressView(value: progress.percentComplete)
+                                .tint(.blue)
+                                .frame(height: 2)
+
+                            Text(progress.formattedProgress)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
+                        .padding(.top, 4)
                     }
                 }
             }
@@ -204,7 +251,7 @@ struct EpisodeRow: View {
                 addedAt: 0,
                 recentEpisode: nil
             ),
-            audioPlayer: AudioPlayer()
+            audioPlayer: AudioPlayer.shared
         )
     }
 }

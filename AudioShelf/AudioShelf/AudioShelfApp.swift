@@ -10,7 +10,7 @@ import SwiftUI
 @main
 struct AudioShelfApp: App {
     @State private var isLoggedIn = AudioBookshelfAPI.shared.isLoggedIn
-    @State private var audioPlayer = AudioPlayer()
+    private var audioPlayer = AudioPlayer.shared
 
     var body: some Scene {
         WindowGroup {

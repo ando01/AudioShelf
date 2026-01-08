@@ -13,9 +13,13 @@ import UIKit
 
 @Observable
 class AudioPlayer {
+    static let shared = AudioPlayer()
+
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var cachedArtwork: MPMediaItemArtwork?
+    private let progressService = PlaybackProgressService.shared
+    private var lastSaveTime: Double = 0
 
     var isPlaying = false
     var currentTime: Double = 0
@@ -24,9 +28,11 @@ class AudioPlayer {
     var currentPodcast: Podcast?
     var playbackSpeed: Float = 1.0
 
-    init() {
+    private init() {
         configureAudioSession()
         setupRemoteCommandCenter()
+        // Clean up old progress on launch
+        progressService.cleanupOldProgress()
     }
 
     func play(episode: Episode, audioURL: URL, podcast: Podcast? = nil) {
@@ -59,14 +65,37 @@ class AudioPlayer {
             // Observe time updates
             let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
             timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-                self?.currentTime = time.seconds
-                self?.updateNowPlayingInfo()
+                guard let self = self else { return }
+                self.currentTime = time.seconds
+                self.updateNowPlayingInfo()
+
+                // Auto-save every 10 seconds
+                if self.currentTime - self.lastSaveTime >= 10.0, let episode = self.currentEpisode {
+                    self.progressService.saveProgress(
+                        episodeId: episode.id,
+                        currentTime: self.currentTime,
+                        duration: self.duration
+                    )
+                    self.lastSaveTime = self.currentTime
+                }
             }
 
             // Load artwork asynchronously once for this episode
             Task {
                 cachedArtwork = await loadArtwork()
                 updateNowPlayingInfo()
+            }
+
+            // Load saved progress and resume
+            if let savedProgress = progressService.getProgress(episodeId: episode.id),
+               savedProgress.currentTime > 5.0,  // Only resume if >5 seconds in
+               savedProgress.percentComplete < 0.95 {  // Don't resume if nearly done
+
+                // Seek after a brief delay to ensure player is ready
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    print("Resuming from \(savedProgress.currentTime) seconds")
+                    self.seek(to: savedProgress.currentTime)
+                }
             }
         }
 
@@ -98,6 +127,16 @@ class AudioPlayer {
     }
 
     func stop() {
+        // Save progress before clearing
+        if let episode = currentEpisode, currentTime > 0 {
+            progressService.saveProgress(
+                episodeId: episode.id,
+                currentTime: currentTime,
+                duration: duration
+            )
+            print("Saved progress: \(currentTime)s for episode \(episode.id)")
+        }
+
         player?.pause()
         if let timeObserver = timeObserver {
             player?.removeTimeObserver(timeObserver)

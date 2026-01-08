@@ -52,6 +52,35 @@ struct PodcastListView: View {
             }
             .navigationTitle("Podcasts")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                        TextField("Search podcasts", text: $viewModel.searchText)
+                            .textFieldStyle(.plain)
+                            .autocorrectionDisabled()
+                        if !viewModel.searchText.isEmpty {
+                            Button {
+                                viewModel.searchText = ""
+                                viewModel.setSearchText("")
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                            }
+                        }
+                    }
+                    .padding(8)
+                    .background(.regularMaterial)
+                    .cornerRadius(10)
+                    .frame(maxWidth: 400)
+                }
+            }
+            .onChange(of: viewModel.searchText) { _, newValue in
+                viewModel.setSearchText(newValue)
+            }
+            .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Menu {
                         Button {
@@ -173,6 +202,15 @@ struct PodcastRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+
+                // Genre badge
+                Text(podcast.primaryGenre)
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.blue.opacity(0.1))
+                    .cornerRadius(8)
             }
         }
         .padding(.vertical, 4)
@@ -180,5 +218,5 @@ struct PodcastRow: View {
 }
 
 #Preview {
-    PodcastListView(isLoggedIn: .constant(true), audioPlayer: AudioPlayer())
+    PodcastListView(isLoggedIn: .constant(true), audioPlayer: AudioPlayer.shared)
 }
