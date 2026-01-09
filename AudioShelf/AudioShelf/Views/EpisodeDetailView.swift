@@ -94,6 +94,41 @@ struct EpisodeDetailView: View {
                     } onPlay: {
                         viewModel.playEpisode(episode)
                     }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        // Swipe right to download
+                        if viewModel.isDownloaded(episode) {
+                            Button(role: .destructive) {
+                                viewModel.deleteDownload(for: episode)
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        } else if !viewModel.isDownloading(episode) {
+                            Button {
+                                viewModel.downloadEpisode(episode)
+                            } label: {
+                                Label("Download", systemImage: "arrow.down.circle")
+                            }
+                            .tint(.blue)
+                        }
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        // Swipe left to mark as finished
+                        if let progress = viewModel.getProgress(for: episode), progress.isFinished {
+                            Button {
+                                viewModel.clearProgress(for: episode)
+                            } label: {
+                                Label("Unfinish", systemImage: "arrow.uturn.backward")
+                            }
+                            .tint(.orange)
+                        } else {
+                            Button {
+                                viewModel.markAsFinished(episode)
+                            } label: {
+                                Label("Finished", systemImage: "checkmark")
+                            }
+                            .tint(.green)
+                        }
+                    }
                 }
             }
         }
@@ -150,7 +185,17 @@ struct EpisodeRow: View {
             // Episode title and date
             Button(action: onTap) {
                 VStack(alignment: .leading, spacing: 6) {
-                    HStack {
+                    HStack(spacing: 12) {
+                        // Blue checkmark for downloaded episodes (left side)
+                        if viewModel.isDownloaded(episode) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.blue)
+                                .imageScale(.medium)
+                        } else if viewModel.isDownloading(episode) {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        }
+
                         Text(episode.displayTitle)
                             .font(.headline)
                             .lineLimit(isExpanded ? nil : 2)
@@ -158,7 +203,12 @@ struct EpisodeRow: View {
 
                         Spacer()
 
-                        if isPlaying {
+                        // Green checkmark for finished episodes (right side)
+                        if let progress = viewModel.getProgress(for: episode), progress.isFinished {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .imageScale(.medium)
+                        } else if isPlaying {
                             Image(systemName: "speaker.wave.2.fill")
                                 .foregroundStyle(.blue)
                                 .imageScale(.small)
@@ -218,78 +268,6 @@ struct EpisodeRow: View {
                     .padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
-                .padding(.top, 4)
-
-                // Action buttons row
-                HStack(spacing: 12) {
-                    // Download button
-                    if viewModel.isDownloaded(episode) {
-                        Button {
-                            viewModel.deleteDownload(for: episode)
-                        } label: {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Downloaded")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.green)
-                    } else if viewModel.isDownloading(episode) {
-                        Button {} label: {
-                            HStack {
-                                ProgressView()
-                                    .scaleEffect(0.8)
-                                Text("Downloading...")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(true)
-                    } else {
-                        Button {
-                            viewModel.downloadEpisode(episode)
-                        } label: {
-                            HStack {
-                                Image(systemName: "arrow.down.circle")
-                                Text("Download")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-
-                    // Mark as finished button
-                    if let progress = viewModel.getProgress(for: episode), progress.isFinished {
-                        Button {
-                            viewModel.clearProgress(for: episode)
-                        } label: {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Finished")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.bordered)
-                        .tint(.blue)
-                    } else {
-                        Button {
-                            viewModel.markAsFinished(episode)
-                        } label: {
-                            HStack {
-                                Image(systemName: "checkmark.circle")
-                                Text("Mark Finished")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                }
                 .padding(.top, 4)
 
                 if let description = episode.description, !description.isEmpty {
