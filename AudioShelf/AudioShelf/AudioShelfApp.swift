@@ -7,9 +7,17 @@
 
 import SwiftUI
 import AVFoundation
+import UIKit
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        return .portrait
+    }
+}
 
 @main
 struct AudioShelfApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @State private var isLoggedIn = AudioBookshelfAPI.shared.isLoggedIn
     @Environment(\.scenePhase) private var scenePhase
     private var audioPlayer = AudioPlayer.shared
