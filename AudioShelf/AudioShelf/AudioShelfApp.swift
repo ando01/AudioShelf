@@ -56,65 +56,58 @@ struct FloatingPlayerView: View {
     @AppStorage("playerExpanded") private var persistedExpanded = false
 
     var body: some View {
-        GeometryReader { geometry in
-            let screenHeight = geometry.size.height
-            let miniPlayerHeight: CGFloat = 160
-            let expandedHeight = screenHeight
-
-            ZStack(alignment: .top) {
-                if isExpanded {
-                    ExpandedPlayerView(
-                        audioPlayer: audioPlayer,
-                        isExpanded: $isExpanded
-                    )
-                    .frame(height: expandedHeight)
-                    .offset(y: max(0, dragOffset))
-                } else {
-                    MiniPlayerView(audioPlayer: audioPlayer)
-                        .frame(height: miniPlayerHeight)
-                        .offset(y: dragOffset)
-                }
-            }
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        isDraggingPlayer = true
-                        if isExpanded {
-                            // Dragging down from expanded state
-                            dragOffset = max(0, value.translation.height)
-                        } else {
-                            // Dragging up from mini state
-                            dragOffset = min(0, value.translation.height)
-                        }
-                    }
-                    .onEnded { value in
-                        isDraggingPlayer = false
-                        let threshold: CGFloat = 100
-
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                            if isExpanded {
-                                // If dragged down more than threshold, minimize
-                                if dragOffset > threshold {
-                                    isExpanded = false
-                                    persistedExpanded = false
-                                }
-                                dragOffset = 0
-                            } else {
-                                // If dragged up more than threshold, expand
-                                if dragOffset < -threshold {
-                                    isExpanded = true
-                                    persistedExpanded = true
-                                }
-                                dragOffset = 0
-                            }
-                        }
-                    }
-            )
-            .onAppear {
-                isExpanded = persistedExpanded
+        VStack(spacing: 0) {
+            if isExpanded {
+                ExpandedPlayerView(
+                    audioPlayer: audioPlayer,
+                    isExpanded: $isExpanded
+                )
+                .offset(y: dragOffset)
+            } else {
+                Spacer()
+                MiniPlayerView(audioPlayer: audioPlayer)
+                    .offset(y: dragOffset)
             }
         }
-        .ignoresSafeArea()
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDraggingPlayer = true
+                    if isExpanded {
+                        // Dragging down from expanded state
+                        dragOffset = max(0, value.translation.height)
+                    } else {
+                        // Dragging up from mini state (negative offset)
+                        dragOffset = min(0, value.translation.height)
+                    }
+                }
+                .onEnded { value in
+                    isDraggingPlayer = false
+                    let threshold: CGFloat = 100
+
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        if isExpanded {
+                            // If dragged down more than threshold, minimize
+                            if dragOffset > threshold {
+                                isExpanded = false
+                                persistedExpanded = false
+                            }
+                            dragOffset = 0
+                        } else {
+                            // If dragged up more than threshold, expand
+                            if dragOffset < -threshold {
+                                isExpanded = true
+                                persistedExpanded = true
+                            }
+                            dragOffset = 0
+                        }
+                    }
+                }
+        )
+        .ignoresSafeArea(edges: isExpanded ? .all : [])
+        .onAppear {
+            isExpanded = persistedExpanded
+        }
     }
 }
 
@@ -285,6 +278,7 @@ struct ExpandedPlayerView: View {
     @Binding var isExpanded: Bool
     @State private var isDragging = false
     @State private var dragValue: Double = 0
+    @State private var coverImage: UIImage?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -296,16 +290,34 @@ struct ExpandedPlayerView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    // Podcast artwork placeholder
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.blue.opacity(0.2))
-                        .frame(width: 300, height: 300)
-                        .overlay {
-                            Image(systemName: "music.note")
-                                .font(.system(size: 80))
-                                .foregroundStyle(.blue.opacity(0.5))
+                    // Podcast artwork
+                    Group {
+                        if let image = coverImage {
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 300, height: 300)
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                        } else {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.blue.opacity(0.2))
+                                .frame(width: 300, height: 300)
+                                .overlay {
+                                    Image(systemName: "music.note")
+                                        .font(.system(size: 80))
+                                        .foregroundStyle(.blue.opacity(0.5))
+                                }
                         }
-                        .padding(.top, 40)
+                    }
+                    .padding(.top, 40)
+                    .task {
+                        await loadCoverArt()
+                    }
+                    .onChange(of: audioPlayer.currentPodcast?.id) {
+                        Task {
+                            await loadCoverArt()
+                        }
+                    }
 
                     // Episode info
                     VStack(spacing: 8) {
@@ -439,6 +451,24 @@ struct ExpandedPlayerView: View {
             return String(format: "%d:%02d:%02d", hours, minutes, secs)
         } else {
             return String(format: "%d:%02d", minutes, secs)
+        }
+    }
+
+    private func loadCoverArt() async {
+        guard let podcast = audioPlayer.currentPodcast,
+              let coverURL = AudioBookshelfAPI.shared.getCoverImageURL(for: podcast) else {
+            coverImage = nil
+            return
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: coverURL)
+            if let image = UIImage(data: data) {
+                coverImage = image
+            }
+        } catch {
+            print("Failed to load cover art: \(error)")
+            coverImage = nil
         }
     }
 }
