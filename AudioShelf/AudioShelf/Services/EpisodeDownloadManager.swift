@@ -30,35 +30,50 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
     // MARK: - URLSessionDownloadDelegate
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        print("✅ Download finished downloading to: \(location)")
         guard let episodeId = episodeIdForTask[downloadTask.taskIdentifier] else {
-            print("No episode ID found for completed download")
+            print("❌ No episode ID found for completed download task: \(downloadTask.taskIdentifier)")
             return
         }
 
+        print("✅ Handling download completion for episode: \(episodeId)")
         DispatchQueue.main.async {
             self.handleDownloadCompletion(episodeId: episodeId, location: location)
         }
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
-        guard let episodeId = episodeIdForTask[downloadTask.taskIdentifier] else { return }
+        guard let episodeId = episodeIdForTask[downloadTask.taskIdentifier] else {
+            print("⚠️ No episode ID for download progress task: \(downloadTask.taskIdentifier)")
+            return
+        }
 
         let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        print("📊 Download progress for \(episodeId): \(Int(progress * 100))% (\(totalBytesWritten)/\(totalBytesExpectedToWrite))")
         DispatchQueue.main.async {
             self.downloadProgress[episodeId] = progress
         }
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
-        guard let episodeId = episodeIdForTask[task.taskIdentifier] else { return }
+        guard let episodeId = episodeIdForTask[task.taskIdentifier] else {
+            if let error = error {
+                print("❌ Task completed with error but no episode ID: \(error)")
+            }
+            return
+        }
 
         if let error = error {
-            print("Download failed for \(episodeId): \(error)")
+            print("❌ Download failed for \(episodeId): \(error)")
+            print("   Error domain: \(error._domain)")
+            print("   Error code: \(error._code)")
             DispatchQueue.main.async {
                 self.downloadTasks.removeValue(forKey: episodeId)
                 self.downloadProgress.removeValue(forKey: episodeId)
                 self.episodeIdForTask.removeValue(forKey: task.taskIdentifier)
             }
+        } else {
+            print("✅ Task completed successfully for: \(episodeId)")
         }
     }
 
@@ -84,18 +99,28 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
     // MARK: - Download Management
 
     func downloadEpisode(_ episode: Episode, audioURL: URL) {
+        print("🔵 downloadEpisode called for: \(episode.displayTitle)")
+        print("🔵 Episode ID: \(episode.id)")
+        print("🔵 Audio URL: \(audioURL)")
+
         guard !isDownloaded(episodeId: episode.id) else {
-            print("Episode already downloaded: \(episode.id)")
+            print("⚠️ Episode already downloaded: \(episode.id)")
             return
         }
 
+        print("🔵 Creating download task...")
         let task = downloadSession.downloadTask(with: audioURL)
+        print("🔵 Task created with identifier: \(task.taskIdentifier)")
+
         downloadTasks[episode.id] = task
         downloadProgress[episode.id] = 0.0
         episodeIdForTask[task.taskIdentifier] = episode.id
 
+        print("🔵 Resuming task...")
         task.resume()
-        print("Started download for episode: \(episode.displayTitle)")
+        print("✅ Download task resumed for episode: \(episode.displayTitle)")
+        print("🔵 Current download tasks count: \(downloadTasks.count)")
+        print("🔵 Current episode ID mappings: \(episodeIdForTask)")
     }
 
     func cancelDownload(episodeId: String) {

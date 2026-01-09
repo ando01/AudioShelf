@@ -113,12 +113,16 @@ class EpisodeDetailViewModel {
     // MARK: - Download Management
 
     func downloadEpisode(_ episode: Episode) {
-        guard let serverURL = api.serverURL else { return }
+        guard let serverURL = api.serverURL else {
+            print("ERROR: No server URL available")
+            return
+        }
 
         let audioPath: String
         if let enclosureUrl = episode.enclosure?.url {
             audioPath = enclosureUrl
         } else {
+            print("ERROR: No audio URL in episode enclosure")
             return
         }
 
@@ -126,12 +130,20 @@ class EpisodeDetailViewModel {
         if audioPath.hasPrefix("http://") || audioPath.hasPrefix("https://") {
             audioURLString = audioPath
         } else {
-            guard let token = api.authToken else { return }
+            guard let token = api.authToken else {
+                print("ERROR: No auth token available")
+                return
+            }
             audioURLString = "\(serverURL)\(audioPath)?token=\(token)"
         }
 
-        guard let audioURL = URL(string: audioURLString) else { return }
+        guard let audioURL = URL(string: audioURLString) else {
+            print("ERROR: Invalid audio URL: \(audioURLString)")
+            return
+        }
 
+        print("🔵 Starting download for: \(episode.displayTitle)")
+        print("🔵 Download URL: \(audioURL)")
         downloadManager.downloadEpisode(episode, audioURL: audioURL)
     }
 
