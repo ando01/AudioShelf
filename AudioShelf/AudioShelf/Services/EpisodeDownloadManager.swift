@@ -8,22 +8,58 @@
 import Foundation
 
 @Observable
-class EpisodeDownloadManager {
+class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
     static let shared = EpisodeDownloadManager()
 
     private(set) var downloadTasks: [String: URLSessionDownloadTask] = [:]
     private(set) var downloadProgress: [String: Double] = [:]
     private(set) var downloadedEpisodes: Set<String> = []
+    private var episodeIdForTask: [Int: String] = [:]
 
     private let fileManager = FileManager.default
     private var downloadSession: URLSession!
 
-    private init() {
-        let config = URLSessionConfiguration.background(withIdentifier: "com.audioshelf.downloads")
+    private override init() {
+        super.init()
+        let config = URLSessionConfiguration.default
         config.isDiscretionary = false
-        config.sessionSendsLaunchEvents = true
-        downloadSession = URLSession(configuration: config, delegate: nil, delegateQueue: nil)
+        downloadSession = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         loadDownloadedEpisodes()
+    }
+
+    // MARK: - URLSessionDownloadDelegate
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+        guard let episodeId = episodeIdForTask[downloadTask.taskIdentifier] else {
+            print("No episode ID found for completed download")
+            return
+        }
+
+        DispatchQueue.main.async {
+            self.handleDownloadCompletion(episodeId: episodeId, location: location)
+        }
+    }
+
+    func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
+        guard let episodeId = episodeIdForTask[downloadTask.taskIdentifier] else { return }
+
+        let progress = Double(totalBytesWritten) / Double(totalBytesExpectedToWrite)
+        DispatchQueue.main.async {
+            self.downloadProgress[episodeId] = progress
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let episodeId = episodeIdForTask[task.taskIdentifier] else { return }
+
+        if let error = error {
+            print("Download failed for \(episodeId): \(error)")
+            DispatchQueue.main.async {
+                self.downloadTasks.removeValue(forKey: episodeId)
+                self.downloadProgress.removeValue(forKey: episodeId)
+                self.episodeIdForTask.removeValue(forKey: task.taskIdentifier)
+            }
+        }
     }
 
     // MARK: - Download Directory
@@ -56,13 +92,17 @@ class EpisodeDownloadManager {
         let task = downloadSession.downloadTask(with: audioURL)
         downloadTasks[episode.id] = task
         downloadProgress[episode.id] = 0.0
+        episodeIdForTask[task.taskIdentifier] = episode.id
 
         task.resume()
         print("Started download for episode: \(episode.displayTitle)")
     }
 
     func cancelDownload(episodeId: String) {
-        downloadTasks[episodeId]?.cancel()
+        if let task = downloadTasks[episodeId] {
+            episodeIdForTask.removeValue(forKey: task.taskIdentifier)
+            task.cancel()
+        }
         downloadTasks.removeValue(forKey: episodeId)
         downloadProgress.removeValue(forKey: episodeId)
     }
@@ -137,6 +177,9 @@ class EpisodeDownloadManager {
             saveDownloadedEpisodes()
 
             // Clean up download tracking
+            if let task = downloadTasks[episodeId] {
+                episodeIdForTask.removeValue(forKey: task.taskIdentifier)
+            }
             downloadTasks.removeValue(forKey: episodeId)
             downloadProgress.removeValue(forKey: episodeId)
 

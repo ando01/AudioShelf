@@ -231,9 +231,10 @@ struct EpisodeRow: View {
                         }
                     }
 
-                    // Progress indicator (if episode has been played)
-                    if let progress = PlaybackProgressService.shared.getProgress(episodeId: episode.id),
-                       progress.percentComplete < 0.95 {  // Don't show for completed
+                    // Progress indicator (if episode has been played but not finished)
+                    if let progress = viewModel.getProgress(for: episode),
+                       !progress.isFinished,
+                       progress.percentComplete > 0 {
 
                         HStack(spacing: 8) {
                             ProgressView(value: progress.percentComplete)
