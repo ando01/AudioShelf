@@ -11,11 +11,22 @@ import AVFoundation
 @main
 struct AudioShelfApp: App {
     @State private var isLoggedIn = AudioBookshelfAPI.shared.isLoggedIn
+    @Environment(\.scenePhase) private var scenePhase
     private var audioPlayer = AudioPlayer.shared
 
     var body: some Scene {
         WindowGroup {
             RootView(isLoggedIn: $isLoggedIn, audioPlayer: audioPlayer)
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active {
+                // Reactivate audio session when app becomes active
+                do {
+                    try AVAudioSession.sharedInstance().setActive(true)
+                } catch {
+                    print("Failed to reactivate audio session: \(error)")
+                }
+            }
         }
     }
 }

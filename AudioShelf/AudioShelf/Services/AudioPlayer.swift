@@ -31,8 +31,42 @@ class AudioPlayer {
     private init() {
         configureAudioSession()
         setupRemoteCommandCenter()
+        setupAudioSessionNotifications()
         // Clean up old progress on launch
         progressService.cleanupOldProgress()
+    }
+
+    private func setupAudioSessionNotifications() {
+        // Handle audio session interruptions (calls, alarms, etc.)
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self,
+                  let userInfo = notification.userInfo,
+                  let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+                return
+            }
+
+            switch type {
+            case .began:
+                // Interruption began (phone call, etc.) - pause playback
+                self.pause()
+            case .ended:
+                // Interruption ended
+                if let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt {
+                    let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+                    if options.contains(.shouldResume) {
+                        // Resume playback if appropriate
+                        self.resume()
+                    }
+                }
+            @unknown default:
+                break
+            }
+        }
     }
 
     func play(episode: Episode, audioURL: URL, podcast: Podcast? = nil) {
