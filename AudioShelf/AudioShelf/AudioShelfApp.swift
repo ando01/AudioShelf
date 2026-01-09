@@ -158,7 +158,9 @@ struct MiniPlayerView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
-                        .frame(width: 44, alignment: .trailing)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(width: 50, alignment: .trailing)
 
                     Slider(
                         value: isDragging ? $dragValue : Binding(
@@ -180,7 +182,9 @@ struct MiniPlayerView: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
-                        .frame(width: 44, alignment: .leading)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(width: 50, alignment: .leading)
                 }
 
                 // Controls - centered play button with symmetric layout
