@@ -23,6 +23,7 @@ class PodcastListViewModel {
     var sortOption: SortOption = .latestEpisode
     var selectedGenre: String? = nil  // nil means "All Genres"
     var searchText: String = ""
+    var isOfflineMode: Bool = false
 
     private let api = AudioBookshelfAPI.shared
     private var allPodcasts: [Podcast] = []  // Store unsorted podcasts
@@ -39,6 +40,7 @@ class PodcastListViewModel {
 
         do {
             libraries = try await api.getLibraries()
+            isOfflineMode = api.isOfflineMode
 
             // Auto-select first podcast library
             selectedLibrary = libraries.first { $0.isPodcastLibrary }
@@ -61,6 +63,7 @@ class PodcastListViewModel {
 
         do {
             allPodcasts = try await api.getPodcasts(libraryId: library.id)
+            isOfflineMode = api.isOfflineMode
             applySorting()
             isLoading = false
         } catch {

@@ -133,7 +133,7 @@ struct EpisodeDetailView: View {
             }
         }
         .listStyle(.plain)
-        .navigationTitle(podcast.title)
+        .navigationTitle(viewModel.isOfflineMode ? "\(podcast.title) (Offline)" : podcast.title)
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             ToolbarItem(placement: .principal) {

@@ -21,6 +21,7 @@ class AudioBookshelfAPI {
     private let userDefaults = UserDefaults.standard
     private let serverURLKey = "serverURL"
     private let authTokenKey = "authToken"
+    private let cache = OfflineDataCache.shared
 
     var serverURL: String? {
         get { userDefaults.string(forKey: serverURLKey) }
@@ -35,6 +36,8 @@ class AudioBookshelfAPI {
     var isLoggedIn: Bool {
         serverURL != nil && authToken != nil
     }
+
+    var isOfflineMode: Bool = false
 
     private init() {}
 
@@ -85,6 +88,12 @@ class AudioBookshelfAPI {
 
     func getLibraries() async throws -> [Library] {
         guard let serverURL = serverURL, let token = authToken else {
+            // If offline, try to use cached data
+            if let cachedLibraries = cache.getCachedLibraries() {
+                print("🔌 Offline mode: Using cached libraries")
+                isOfflineMode = true
+                return cachedLibraries
+            }
             throw APIError.unauthorized
         }
 
@@ -92,24 +101,46 @@ class AudioBookshelfAPI {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 10
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw APIError.invalidResponse
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                throw APIError.invalidResponse
+            }
+
+            let librariesResponse = try JSONDecoder().decode(LibrariesResponse.self, from: data)
+
+            // Cache the successful response
+            cache.cacheLibraries(librariesResponse.libraries)
+            isOfflineMode = false
+
+            return librariesResponse.libraries
+        } catch {
+            // Network error - try cached data
+            if let cachedLibraries = cache.getCachedLibraries() {
+                print("🔌 Network error: Using cached libraries")
+                isOfflineMode = true
+                return cachedLibraries
+            }
+            throw error
         }
-
-        let librariesResponse = try JSONDecoder().decode(LibrariesResponse.self, from: data)
-        return librariesResponse.libraries
     }
 
     // MARK: - Podcasts
 
     func getPodcasts(libraryId: String) async throws -> [Podcast] {
         guard let serverURL = serverURL, let token = authToken else {
+            // If offline, try to use cached data
+            if let cachedPodcasts = cache.getCachedPodcasts() {
+                print("🔌 Offline mode: Using cached podcasts")
+                isOfflineMode = true
+                return cachedPodcasts
+            }
             throw APIError.unauthorized
         }
 
@@ -123,60 +154,75 @@ class AudioBookshelfAPI {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 10
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw APIError.invalidResponse
-        }
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                throw APIError.invalidResponse
+            }
 
-        let podcastsResponse = try JSONDecoder().decode(PodcastsResponse.self, from: data)
+            let podcastsResponse = try JSONDecoder().decode(PodcastsResponse.self, from: data)
 
-        // Fetch full details for each podcast to get episode data
-        // Do this in parallel for better performance
-        let podcastsWithEpisodes = await withTaskGroup(of: Podcast?.self, returning: [Podcast].self) { group in
-            for podcast in podcastsResponse.results {
-                group.addTask {
-                    do {
-                        return try await self.getPodcastWithEpisodes(podcastId: podcast.id)
-                    } catch {
-                        print("Failed to fetch episodes for \(podcast.title): \(error)")
-                        return podcast  // Return original podcast without episodes
+            // Fetch full details for each podcast to get episode data
+            // Do this in parallel for better performance
+            let podcastsWithEpisodes = await withTaskGroup(of: Podcast?.self, returning: [Podcast].self) { group in
+                for podcast in podcastsResponse.results {
+                    group.addTask {
+                        do {
+                            return try await self.getPodcastWithEpisodes(podcastId: podcast.id)
+                        } catch {
+                            print("Failed to fetch episodes for \(podcast.title): \(error)")
+                            return podcast  // Return original podcast without episodes
+                        }
                     }
                 }
-            }
 
-            var results: [Podcast] = []
-            for await podcast in group {
-                if let podcast = podcast {
-                    results.append(podcast)
+                var results: [Podcast] = []
+                for await podcast in group {
+                    if let podcast = podcast {
+                        results.append(podcast)
+                    }
                 }
+                return results
             }
-            return results
-        }
 
-        // Sort podcasts by latest episode published date, newest first
-        let sortedPodcasts = podcastsWithEpisodes.sorted { podcast1, podcast2 in
-            // If both have episode dates, compare them
-            if let date1 = podcast1.latestEpisodeDate,
-               let date2 = podcast2.latestEpisodeDate {
-                return date1 > date2
+            // Sort podcasts by latest episode published date, newest first
+            let sortedPodcasts = podcastsWithEpisodes.sorted { podcast1, podcast2 in
+                // If both have episode dates, compare them
+                if let date1 = podcast1.latestEpisodeDate,
+                   let date2 = podcast2.latestEpisodeDate {
+                    return date1 > date2
+                }
+                // If only one has a date, it goes first
+                if podcast1.latestEpisodeDate != nil {
+                    return true
+                }
+                if podcast2.latestEpisodeDate != nil {
+                    return false
+                }
+                // If neither has dates, fall back to addedAt
+                return podcast1.addedAt > podcast2.addedAt
             }
-            // If only one has a date, it goes first
-            if podcast1.latestEpisodeDate != nil {
-                return true
-            }
-            if podcast2.latestEpisodeDate != nil {
-                return false
-            }
-            // If neither has dates, fall back to addedAt
-            return podcast1.addedAt > podcast2.addedAt
-        }
 
-        return sortedPodcasts
+            // Cache the successful response
+            cache.cachePodcasts(sortedPodcasts)
+            isOfflineMode = false
+
+            return sortedPodcasts
+        } catch {
+            // Network error - try cached data
+            if let cachedPodcasts = cache.getCachedPodcasts() {
+                print("🔌 Network error: Using cached podcasts")
+                isOfflineMode = true
+                return cachedPodcasts
+            }
+            throw error
+        }
     }
 
     // Helper to fetch full podcast details with episodes
@@ -206,6 +252,12 @@ class AudioBookshelfAPI {
 
     func getEpisodes(podcastId: String) async throws -> [Episode] {
         guard let serverURL = serverURL, let token = authToken else {
+            // If offline, try to use cached data
+            if let cachedEpisodes = cache.getCachedEpisodes(forPodcastId: podcastId) {
+                print("🔌 Offline mode: Using cached episodes for podcast: \(podcastId)")
+                isOfflineMode = true
+                return cachedEpisodes
+            }
             throw APIError.unauthorized
         }
 
@@ -214,33 +266,48 @@ class AudioBookshelfAPI {
             throw APIError.invalidURL
         }
 
-        var request = URLRequest(url: url)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        do {
+            var request = URLRequest(url: url)
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            request.timeoutInterval = 10
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await URLSession.shared.data(for: request)
 
-        guard let httpResponse = response as? HTTPURLResponse,
-              httpResponse.statusCode == 200 else {
-            throw APIError.invalidResponse
-        }
-
-        // Decode the full podcast item which contains episodes in media.episodes
-        let podcast = try JSONDecoder().decode(Podcast.self, from: data)
-
-        guard let episodes = podcast.media.episodes else {
-            return []
-        }
-
-        // Sort episodes by published date, newest first
-        let sortedEpisodes = episodes.sorted { episode1, episode2 in
-            guard let date1 = episode1.publishedDate,
-                  let date2 = episode2.publishedDate else {
-                return false
+            guard let httpResponse = response as? HTTPURLResponse,
+                  httpResponse.statusCode == 200 else {
+                throw APIError.invalidResponse
             }
-            return date1 > date2
-        }
 
-        return sortedEpisodes
+            // Decode the full podcast item which contains episodes in media.episodes
+            let podcast = try JSONDecoder().decode(Podcast.self, from: data)
+
+            guard let episodes = podcast.media.episodes else {
+                return []
+            }
+
+            // Sort episodes by published date, newest first
+            let sortedEpisodes = episodes.sorted { episode1, episode2 in
+                guard let date1 = episode1.publishedDate,
+                      let date2 = episode2.publishedDate else {
+                    return false
+                }
+                return date1 > date2
+            }
+
+            // Cache the successful response
+            cache.cacheEpisodes(sortedEpisodes, forPodcastId: podcastId)
+            isOfflineMode = false
+
+            return sortedEpisodes
+        } catch {
+            // Network error - try cached data
+            if let cachedEpisodes = cache.getCachedEpisodes(forPodcastId: podcastId) {
+                print("🔌 Network error: Using cached episodes for podcast: \(podcastId)")
+                isOfflineMode = true
+                return cachedEpisodes
+            }
+            throw error
+        }
     }
 
     // MARK: - Cover Images

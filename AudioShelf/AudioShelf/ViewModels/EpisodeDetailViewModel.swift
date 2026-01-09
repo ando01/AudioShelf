@@ -18,6 +18,7 @@ class EpisodeDetailViewModel {
     var podcast: Podcast
     var searchText: String = ""
     var episodeProgress: [String: EpisodeProgress] = [:]
+    var isOfflineMode: Bool = false
 
     private let api = AudioBookshelfAPI.shared
     private var allEpisodes: [Episode] = []
@@ -66,6 +67,7 @@ class EpisodeDetailViewModel {
 
         do {
             allEpisodes = try await api.getEpisodes(podcastId: podcastId)
+            isOfflineMode = api.isOfflineMode
             applyFiltering()
             loadProgress()
             isLoading = false

@@ -50,7 +50,7 @@ struct PodcastListView: View {
                     }
                 }
             }
-            .navigationTitle("Podcasts")
+            .navigationTitle(viewModel.isOfflineMode ? "Podcasts (Offline)" : "Podcasts")
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     HStack {

@@ -37,9 +37,8 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
         }
 
         print("✅ Handling download completion for episode: \(episodeId)")
-        DispatchQueue.main.async {
-            self.handleDownloadCompletion(episodeId: episodeId, location: location)
-        }
+        // MUST move file synchronously before returning - temp file is deleted after this method returns
+        handleDownloadCompletion(episodeId: episodeId, location: location)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
@@ -187,30 +186,52 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
     // MARK: - Download Completion
 
     func handleDownloadCompletion(episodeId: String, location: URL) {
+        // Ensure downloads directory exists
+        let downloadsDir = getDownloadsDirectory()
+        do {
+            if !fileManager.fileExists(atPath: downloadsDir.path) {
+                try fileManager.createDirectory(at: downloadsDir, withIntermediateDirectories: true, attributes: nil)
+                print("✅ Created downloads directory: \(downloadsDir.path)")
+            }
+        } catch {
+            print("❌ Failed to create downloads directory: \(error)")
+            return
+        }
+
         let destination = getLocalFileURL(for: episodeId)
+        print("📁 Moving file from: \(location.path)")
+        print("📁 Moving file to: \(destination.path)")
 
         do {
             // Remove existing file if it exists
             if fileManager.fileExists(atPath: destination.path) {
                 try fileManager.removeItem(at: destination)
+                print("🗑 Removed existing file at destination")
             }
 
-            // Move downloaded file to permanent location
+            // Move downloaded file to permanent location - MUST be done synchronously
             try fileManager.moveItem(at: location, to: destination)
+            print("✅ Successfully moved file to permanent location")
 
-            downloadedEpisodes.insert(episodeId)
-            saveDownloadedEpisodes()
+            // Update state on main queue for UI updates
+            DispatchQueue.main.async {
+                self.downloadedEpisodes.insert(episodeId)
+                self.saveDownloadedEpisodes()
+                print("✅ Saved to downloaded episodes list")
 
-            // Clean up download tracking
-            if let task = downloadTasks[episodeId] {
-                episodeIdForTask.removeValue(forKey: task.taskIdentifier)
+                // Clean up download tracking
+                if let task = self.downloadTasks[episodeId] {
+                    self.episodeIdForTask.removeValue(forKey: task.taskIdentifier)
+                }
+                self.downloadTasks.removeValue(forKey: episodeId)
+                self.downloadProgress.removeValue(forKey: episodeId)
+
+                print("✅ Download completed for episode: \(episodeId)")
             }
-            downloadTasks.removeValue(forKey: episodeId)
-            downloadProgress.removeValue(forKey: episodeId)
-
-            print("Download completed for episode: \(episodeId)")
         } catch {
-            print("Failed to save download: \(error)")
+            print("❌ Failed to save download: \(error)")
+            print("   Location exists: \(fileManager.fileExists(atPath: location.path))")
+            print("   Destination dir exists: \(fileManager.fileExists(atPath: downloadsDir.path))")
         }
     }
 }
