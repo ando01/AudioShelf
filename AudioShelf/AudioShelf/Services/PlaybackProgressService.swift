@@ -36,11 +36,27 @@ class PlaybackProgressService {
         guard currentTime > 0, duration > 0 else { return }
 
         var allProgress = loadAllProgress()
+        // Preserve existing isFinished state if it exists
+        let existingFinished = allProgress[episodeId]?.isFinished ?? false
         allProgress[episodeId] = EpisodeProgress(
             episodeId: episodeId,
             currentTime: currentTime,
             duration: duration,
-            lastPlayedDate: Date()
+            lastPlayedDate: Date(),
+            isFinished: existingFinished
+        )
+        saveAllProgress(allProgress)
+    }
+
+    // Mark episode as finished
+    func markAsFinished(episodeId: String, duration: Double) {
+        var allProgress = loadAllProgress()
+        allProgress[episodeId] = EpisodeProgress(
+            episodeId: episodeId,
+            currentTime: duration,  // Set to end
+            duration: duration,
+            lastPlayedDate: Date(),
+            isFinished: true
         )
         saveAllProgress(allProgress)
     }

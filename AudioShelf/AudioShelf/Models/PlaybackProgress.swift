@@ -12,6 +12,7 @@ struct EpisodeProgress: Codable {
     let currentTime: Double      // Seconds into episode
     let duration: Double         // Total episode duration
     let lastPlayedDate: Date
+    let isFinished: Bool         // Manually marked as finished
 
     var percentComplete: Double {
         guard duration > 0 else { return 0 }
@@ -19,10 +20,13 @@ struct EpisodeProgress: Codable {
     }
 
     var isCompleted: Bool {
-        percentComplete >= 0.95   // Consider 95%+ as complete
+        isFinished || percentComplete >= 0.95   // Consider 95%+ or manually marked as complete
     }
 
     var formattedProgress: String {
+        if isFinished {
+            return "Finished"
+        }
         let percent = Int(percentComplete * 100)
         return "\(percent)%"
     }

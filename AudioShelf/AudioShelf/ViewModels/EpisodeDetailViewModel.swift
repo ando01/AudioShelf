@@ -22,6 +22,7 @@ class EpisodeDetailViewModel {
     private let api = AudioBookshelfAPI.shared
     private var allEpisodes: [Episode] = []
     private let progressService = PlaybackProgressService.shared
+    private let downloadManager = EpisodeDownloadManager.shared
     private var progressRefreshTimer: Timer?
 
     init(audioPlayer: AudioPlayer, podcast: Podcast) {
@@ -98,6 +99,58 @@ class EpisodeDetailViewModel {
         episodeProgress.removeValue(forKey: episode.id)
     }
 
+    func markAsFinished(_ episode: Episode) {
+        let duration = episode.durationSeconds ?? 0
+        progressService.markAsFinished(episodeId: episode.id, duration: duration)
+        refreshProgress()
+
+        // Auto-delete download if it exists
+        if downloadManager.isDownloaded(episodeId: episode.id) {
+            downloadManager.deleteDownload(episodeId: episode.id)
+        }
+    }
+
+    // MARK: - Download Management
+
+    func downloadEpisode(_ episode: Episode) {
+        guard let serverURL = api.serverURL else { return }
+
+        let audioPath: String
+        if let enclosureUrl = episode.enclosure?.url {
+            audioPath = enclosureUrl
+        } else {
+            return
+        }
+
+        let audioURLString: String
+        if audioPath.hasPrefix("http://") || audioPath.hasPrefix("https://") {
+            audioURLString = audioPath
+        } else {
+            guard let token = api.authToken else { return }
+            audioURLString = "\(serverURL)\(audioPath)?token=\(token)"
+        }
+
+        guard let audioURL = URL(string: audioURLString) else { return }
+
+        downloadManager.downloadEpisode(episode, audioURL: audioURL)
+    }
+
+    func cancelDownload(for episode: Episode) {
+        downloadManager.cancelDownload(episodeId: episode.id)
+    }
+
+    func deleteDownload(for episode: Episode) {
+        downloadManager.deleteDownload(episodeId: episode.id)
+    }
+
+    func isDownloaded(_ episode: Episode) -> Bool {
+        return downloadManager.isDownloaded(episodeId: episode.id)
+    }
+
+    func isDownloading(_ episode: Episode) -> Bool {
+        return downloadManager.isDownloading(episodeId: episode.id)
+    }
+
     func setSearchText(_ text: String) {
         searchText = text
         applyFiltering()
@@ -138,7 +191,14 @@ class EpisodeDetailViewModel {
             return
         }
 
-        // Otherwise, start playing this episode
+        // Check if episode is downloaded - use local file if available
+        if let localURL = downloadManager.getLocalURL(for: episode.id) {
+            selectedEpisode = episode
+            audioPlayer.play(episode: episode, audioURL: localURL, podcast: podcast)
+            return
+        }
+
+        // Otherwise, stream from server
         guard let serverURL = api.serverURL else {
             errorMessage = "Server URL not available"
             return

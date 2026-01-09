@@ -81,7 +81,8 @@ struct EpisodeDetailView: View {
                     EpisodeRow(
                         episode: episode,
                         isExpanded: expandedEpisodeId == episode.id,
-                        isPlaying: viewModel.audioPlayer.currentEpisode?.id == episode.id && viewModel.audioPlayer.isPlaying
+                        isPlaying: viewModel.audioPlayer.currentEpisode?.id == episode.id && viewModel.audioPlayer.isPlaying,
+                        viewModel: viewModel
                     ) {
                         withAnimation {
                             if expandedEpisodeId == episode.id {
@@ -138,6 +139,7 @@ struct EpisodeRow: View {
     let episode: Episode
     let isExpanded: Bool
     let isPlaying: Bool
+    let viewModel: EpisodeDetailViewModel
     let onTap: () -> Void
     let onPlay: () -> Void
 
@@ -216,6 +218,78 @@ struct EpisodeRow: View {
                     .padding(.vertical, 12)
                 }
                 .buttonStyle(.borderedProminent)
+                .padding(.top, 4)
+
+                // Action buttons row
+                HStack(spacing: 12) {
+                    // Download button
+                    if viewModel.isDownloaded(episode) {
+                        Button {
+                            viewModel.deleteDownload(for: episode)
+                        } label: {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Downloaded")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.green)
+                    } else if viewModel.isDownloading(episode) {
+                        Button {} label: {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Downloading...")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(true)
+                    } else {
+                        Button {
+                            viewModel.downloadEpisode(episode)
+                        } label: {
+                            HStack {
+                                Image(systemName: "arrow.down.circle")
+                                Text("Download")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    // Mark as finished button
+                    if let progress = viewModel.getProgress(for: episode), progress.isFinished {
+                        Button {
+                            viewModel.clearProgress(for: episode)
+                        } label: {
+                            HStack {
+                                Image(systemName: "checkmark.circle.fill")
+                                Text("Finished")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.blue)
+                    } else {
+                        Button {
+                            viewModel.markAsFinished(episode)
+                        } label: {
+                            HStack {
+                                Image(systemName: "checkmark.circle")
+                                Text("Mark Finished")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
                 .padding(.top, 4)
 
                 if let description = episode.description, !description.isEmpty {
