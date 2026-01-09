@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Combine
 
 @Observable
 class EpisodeDetailViewModel {
@@ -16,13 +17,46 @@ class EpisodeDetailViewModel {
     var audioPlayer: AudioPlayer
     var podcast: Podcast
     var searchText: String = ""
+    var episodeProgress: [String: EpisodeProgress] = [:]
 
     private let api = AudioBookshelfAPI.shared
     private var allEpisodes: [Episode] = []
+    private let progressService = PlaybackProgressService.shared
+    private var progressRefreshTimer: Timer?
 
     init(audioPlayer: AudioPlayer, podcast: Podcast) {
         self.audioPlayer = audioPlayer
         self.podcast = podcast
+        startProgressRefreshTimer()
+    }
+
+    deinit {
+        stopProgressRefreshTimer()
+    }
+
+    private func startProgressRefreshTimer() {
+        // Refresh progress every 5 seconds while viewing episodes
+        progressRefreshTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { [weak self] _ in
+            self?.refreshProgressIfNeeded()
+        }
+    }
+
+    private func stopProgressRefreshTimer() {
+        progressRefreshTimer?.invalidate()
+        progressRefreshTimer = nil
+    }
+
+    private func refreshProgressIfNeeded() {
+        // Only refresh if we're currently playing an episode from this podcast
+        guard let currentEpisode = audioPlayer.currentEpisode,
+              allEpisodes.contains(where: { $0.id == currentEpisode.id }) else {
+            return
+        }
+
+        // Update the progress for the currently playing episode
+        if let updatedProgress = progressService.getProgress(episodeId: currentEpisode.id) {
+            episodeProgress[currentEpisode.id] = updatedProgress
+        }
     }
 
     func loadEpisodes(for podcastId: String) async {
@@ -32,11 +66,36 @@ class EpisodeDetailViewModel {
         do {
             allEpisodes = try await api.getEpisodes(podcastId: podcastId)
             applyFiltering()
+            loadProgress()
             isLoading = false
         } catch {
             isLoading = false
             errorMessage = "Failed to load episodes: \(error.localizedDescription)"
         }
+    }
+
+    func loadProgress() {
+        // Load progress for all episodes
+        episodeProgress.removeAll()
+        for episode in allEpisodes {
+            if let progress = progressService.getProgress(episodeId: episode.id) {
+                episodeProgress[episode.id] = progress
+            }
+        }
+    }
+
+    func refreshProgress() {
+        // Refresh progress from the service (useful after playback)
+        loadProgress()
+    }
+
+    func getProgress(for episode: Episode) -> EpisodeProgress? {
+        return episodeProgress[episode.id]
+    }
+
+    func clearProgress(for episode: Episode) {
+        progressService.clearProgress(episodeId: episode.id)
+        episodeProgress.removeValue(forKey: episode.id)
     }
 
     func setSearchText(_ text: String) {
