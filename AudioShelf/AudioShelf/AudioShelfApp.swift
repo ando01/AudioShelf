@@ -274,13 +274,18 @@ struct ExpandedPlayerView: View {
     @State private var coverImage: UIImage?
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Drag handle - only this area is draggable
-            RoundedRectangle(cornerRadius: 2.5)
-                .fill(Color.secondary.opacity(0.5))
-                .frame(width: 40, height: 5)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                // Drag handle area with safe area padding
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: geometry.safeAreaInsets.top)
+
+                    RoundedRectangle(cornerRadius: 2.5)
+                        .fill(Color.secondary.opacity(0.5))
+                        .frame(width: 40, height: 5)
+                        .padding(.vertical, 12)
+                }
                 .contentShape(Rectangle())
                 .gesture(
                     DragGesture()
@@ -447,9 +452,10 @@ struct ExpandedPlayerView: View {
                 }
             }
             .background(.regularMaterial)
+            }
+            .background(.regularMaterial)
+            .offset(y: dragOffset)
         }
-        .background(.regularMaterial)
-        .offset(y: dragOffset)
     }
 
     private func formatTime(_ seconds: Double) -> String {
