@@ -70,6 +70,7 @@ struct FloatingPlayerView: View {
                     isExpanded: $isExpanded,
                     dragOffset: $dragOffset
                 )
+                .ignoresSafeArea(edges: .bottom)
             } else {
                 Spacer()
                 MiniPlayerView(
@@ -79,7 +80,6 @@ struct FloatingPlayerView: View {
                 )
             }
         }
-        .ignoresSafeArea(edges: isExpanded ? .all : [])
     }
 }
 
@@ -274,35 +274,33 @@ struct ExpandedPlayerView: View {
     @State private var coverImage: UIImage?
 
     var body: some View {
-        GeometryReader { geometry in
+        VStack(spacing: 0) {
+            // Drag handle area - always visible at top
             VStack(spacing: 0) {
-                // Drag handle area with safe area padding
-                VStack(spacing: 0) {
-                    Color.clear
-                        .frame(height: geometry.safeAreaInsets.top)
-
-                    RoundedRectangle(cornerRadius: 2.5)
-                        .fill(Color.secondary.opacity(0.5))
-                        .frame(width: 40, height: 5)
-                        .padding(.vertical, 12)
-                }
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            // Only allow dragging down
-                            dragOffset = max(0, value.translation.height)
-                        }
-                        .onEnded { value in
-                            let threshold: CGFloat = 100
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                                if dragOffset > threshold {
-                                    isExpanded = false
-                                }
-                                dragOffset = 0
+                RoundedRectangle(cornerRadius: 2.5)
+                    .fill(Color.secondary.opacity(0.5))
+                    .frame(width: 40, height: 5)
+                    .padding(.vertical, 12)
+            }
+            .frame(maxWidth: .infinity)
+            .background(.regularMaterial)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture()
+                    .onChanged { value in
+                        // Only allow dragging down
+                        dragOffset = max(0, value.translation.height)
+                    }
+                    .onEnded { value in
+                        let threshold: CGFloat = 100
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                            if dragOffset > threshold {
+                                isExpanded = false
                             }
+                            dragOffset = 0
                         }
-                )
+                    }
+            )
 
             ScrollView {
                 VStack(spacing: 24) {
@@ -452,10 +450,9 @@ struct ExpandedPlayerView: View {
                 }
             }
             .background(.regularMaterial)
-            }
-            .background(.regularMaterial)
-            .offset(y: dragOffset)
         }
+        .background(.regularMaterial)
+        .offset(y: dragOffset)
     }
 
     private func formatTime(_ seconds: Double) -> String {
