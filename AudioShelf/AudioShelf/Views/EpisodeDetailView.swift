@@ -179,6 +179,8 @@ struct EpisodeRow: View {
     let onPlay: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @State private var bookmarks: [Bookmark] = []
+    private let bookmarkService = BookmarkService.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -271,6 +273,69 @@ struct EpisodeRow: View {
                 .buttonStyle(.borderedProminent)
                 .padding(.top, 4)
 
+                // Bookmarks section
+                if !bookmarks.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Bookmarks")
+                            .font(.headline)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 8)
+
+                        ForEach(bookmarks) { bookmark in
+                            HStack {
+                                Button {
+                                    // Jump to bookmark
+                                    viewModel.playEpisode(episode)
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                        viewModel.audioPlayer.seek(to: bookmark.timestamp)
+                                    }
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: "bookmark.fill")
+                                            .foregroundStyle(.blue)
+                                            .imageScale(.small)
+
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(bookmark.formattedTimestamp)
+                                                .font(.subheadline)
+                                                .fontWeight(.medium)
+                                                .foregroundStyle(.primary)
+
+                                            if let note = bookmark.note, !note.isEmpty {
+                                                Text(note)
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(2)
+                                            }
+                                        }
+
+                                        Spacer()
+
+                                        Image(systemName: "play.circle")
+                                            .foregroundStyle(.blue)
+                                            .imageScale(.medium)
+                                    }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                                .buttonStyle(.plain)
+
+                                Button {
+                                    bookmarkService.deleteBookmark(bookmark)
+                                    loadBookmarks()
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .foregroundStyle(.red)
+                                        .imageScale(.small)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+
                 if let description = episode.description, !description.isEmpty {
                     Text(description.htmlToAttributedString(colorScheme: colorScheme))
                         .font(.system(size: 22))
@@ -282,6 +347,18 @@ struct EpisodeRow: View {
             }
         }
         .padding(.vertical, 8)
+        .onAppear {
+            loadBookmarks()
+        }
+        .onChange(of: isExpanded) {
+            if isExpanded {
+                loadBookmarks()
+            }
+        }
+    }
+
+    private func loadBookmarks() {
+        bookmarks = bookmarkService.getBookmarks(for: episode.id)
     }
 }
 

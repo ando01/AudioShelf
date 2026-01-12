@@ -110,6 +110,9 @@ struct MiniPlayerView: View {
     @Binding var dragOffset: CGFloat
     @State private var isDragging = false
     @State private var dragValue: Double = 0
+    @State private var showBookmarkDialog = false
+    @State private var bookmarkNote = ""
+    private let bookmarkService = BookmarkService.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -186,7 +189,7 @@ struct MiniPlayerView: View {
                     }
                     .tint(.blue)
 
-                    Text(formatTime(audioPlayer.duration))
+                    Text(formatTime(audioPlayer.duration - (isDragging ? dragValue : audioPlayer.currentTime)))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
@@ -197,15 +200,25 @@ struct MiniPlayerView: View {
 
                 // Controls - centered play button with symmetric layout
                 HStack(spacing: 0) {
-                    // Left side - Skip backward
-                    HStack {
+                    // Left side - Skip backward and Bookmark
+                    HStack(spacing: 0) {
                         Button {
                             audioPlayer.seek(to: max(0, audioPlayer.currentTime - 15))
                         } label: {
                             Image(systemName: "gobackward.15")
                                 .font(.title2)
                         }
+
                         Spacer()
+
+                        // Bookmark button
+                        Button {
+                            showBookmarkDialog = true
+                        } label: {
+                            Image(systemName: "bookmark")
+                                .font(.title2)
+                                .foregroundStyle(.blue)
+                        }
                     }
                     .frame(maxWidth: .infinity)
 
@@ -222,11 +235,10 @@ struct MiniPlayerView: View {
                             .foregroundStyle(.blue)
                     }
                     .frame(width: 70)
+                    .padding(.horizontal, 12)
 
                     // Right side - Speed and Skip forward
-                    HStack(spacing: 16) {
-                        Spacer()
-
+                    HStack(spacing: 0) {
                         // Playback speed
                         Menu {
                             ForEach([0.75, 1.0, 1.25, 1.5, 1.75, 2.0], id: \.self) { speed in
@@ -249,6 +261,8 @@ struct MiniPlayerView: View {
                                 .frame(minWidth: 36)
                         }
 
+                        Spacer()
+
                         // Skip forward 30s
                         Button {
                             let newTime = audioPlayer.currentTime + 30
@@ -269,6 +283,25 @@ struct MiniPlayerView: View {
         }
         .background(.regularMaterial)
         .offset(y: dragOffset)
+        .alert("Add Bookmark", isPresented: $showBookmarkDialog) {
+            TextField("Note (optional)", text: $bookmarkNote)
+            Button("Cancel", role: .cancel) {
+                bookmarkNote = ""
+            }
+            Button("Save") {
+                if let episode = audioPlayer.currentEpisode {
+                    let note = bookmarkNote.isEmpty ? nil : bookmarkNote
+                    bookmarkService.addBookmark(
+                        episodeId: episode.id,
+                        timestamp: audioPlayer.currentTime,
+                        note: note
+                    )
+                    bookmarkNote = ""
+                }
+            }
+        } message: {
+            Text("Save bookmark at \(formatTime(audioPlayer.currentTime))")
+        }
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -295,6 +328,11 @@ struct ExpandedPlayerView: View {
     @State private var isDragging = false
     @State private var dragValue: Double = 0
     @State private var coverImage: UIImage?
+    @State private var showBookmarkDialog = false
+    @State private var bookmarkNote = ""
+    @State private var selectedTab = 0
+    @Environment(\.colorScheme) private var colorScheme
+    private let bookmarkService = BookmarkService.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -325,9 +363,12 @@ struct ExpandedPlayerView: View {
                     }
             )
 
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Podcast artwork
+            // TabView for swipeable pages
+            TabView(selection: $selectedTab) {
+                // Page 1: Player Controls
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Podcast artwork
                     Group {
                         if let image = coverImage {
                             Image(uiImage: image)
@@ -399,7 +440,7 @@ struct ExpandedPlayerView: View {
 
                             Spacer()
 
-                            Text(formatTime(audioPlayer.duration))
+                            Text(formatTime(audioPlayer.duration - (isDragging ? dragValue : audioPlayer.currentTime)))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
@@ -443,39 +484,131 @@ struct ExpandedPlayerView: View {
                         }
                     }
 
-                    // Playback speed
-                    Menu {
-                        ForEach([0.75, 1.0, 1.25, 1.5, 1.75, 2.0], id: \.self) { speed in
-                            Button {
-                                audioPlayer.setPlaybackSpeed(Float(speed))
-                            } label: {
-                                HStack {
-                                    Text("\(speed, specifier: "%.2g")×")
-                                    if audioPlayer.playbackSpeed == Float(speed) {
-                                        Image(systemName: "checkmark")
+                    // Playback speed and bookmark
+                    HStack(spacing: 24) {
+                        Menu {
+                            ForEach([0.75, 1.0, 1.25, 1.5, 1.75, 2.0], id: \.self) { speed in
+                                Button {
+                                    audioPlayer.setPlaybackSpeed(Float(speed))
+                                } label: {
+                                    HStack {
+                                        Text("\(speed, specifier: "%.2g")×")
+                                        if audioPlayer.playbackSpeed == Float(speed) {
+                                            Image(systemName: "checkmark")
+                                        }
                                     }
                                 }
                             }
+                        } label: {
+                            HStack {
+                                Text("Speed:")
+                                    .foregroundStyle(.secondary)
+                                Text("\(audioPlayer.playbackSpeed, specifier: "%.2g")×")
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.blue)
+                            }
+                            .font(.headline)
                         }
-                    } label: {
-                        HStack {
-                            Text("Speed:")
-                                .foregroundStyle(.secondary)
-                            Text("\(audioPlayer.playbackSpeed, specifier: "%.2g")×")
-                                .fontWeight(.semibold)
-                                .foregroundStyle(.blue)
+
+                        // Bookmark button
+                        Button {
+                            showBookmarkDialog = true
+                        } label: {
+                            HStack {
+                                Image(systemName: "bookmark")
+                                Text("Bookmark")
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.blue)
                         }
-                        .font(.headline)
                     }
                     .padding(.top, 16)
 
                     Spacer()
                 }
             }
-            .background(.regularMaterial)
+            .tag(0)
+
+            // Page 2: Episode Details
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let episode = audioPlayer.currentEpisode {
+                        // Episode title
+                        Text(episode.displayTitle)
+                            .font(.title)
+                            .fontWeight(.bold)
+                            .padding(.top, 20)
+
+                        // Podcast name
+                        if let podcast = audioPlayer.currentPodcast {
+                            Text(podcast.title)
+                                .font(.headline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        // Published date and duration
+                        HStack {
+                            Text(episode.formattedPublishedDate)
+                                .font(.subheadline)
+                                .foregroundStyle(.blue)
+
+                            if episode.duration != nil {
+                                Text("•")
+                                    .foregroundStyle(.secondary)
+                                Text(episode.formattedDuration)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.bottom, 8)
+
+                        Divider()
+
+                        // Episode description with HTML formatting
+                        if let description = episode.description, !description.isEmpty {
+                            Text(description.htmlToAttributedString(colorScheme: colorScheme))
+                                .font(.system(size: 18))
+                                .lineSpacing(6)
+                                .textSelection(.enabled)
+                                .tint(.blue)
+                        } else {
+                            Text("No description available")
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                                .italic()
+                        }
+                    }
+
+                    Spacer(minLength: 40)
+                }
+                .padding(.horizontal, 24)
+            }
+            .tag(1)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .always))
+        .indexViewStyle(.page(backgroundDisplayMode: .always))
         }
         .background(.regularMaterial)
         .offset(y: dragOffset)
+        .alert("Add Bookmark", isPresented: $showBookmarkDialog) {
+            TextField("Note (optional)", text: $bookmarkNote)
+            Button("Cancel", role: .cancel) {
+                bookmarkNote = ""
+            }
+            Button("Save") {
+                if let episode = audioPlayer.currentEpisode {
+                    let note = bookmarkNote.isEmpty ? nil : bookmarkNote
+                    bookmarkService.addBookmark(
+                        episodeId: episode.id,
+                        timestamp: audioPlayer.currentTime,
+                        note: note
+                    )
+                    bookmarkNote = ""
+                }
+            }
+        } message: {
+            Text("Save bookmark at \(formatTime(audioPlayer.currentTime))")
+        }
     }
 
     private func formatTime(_ seconds: Double) -> String {
