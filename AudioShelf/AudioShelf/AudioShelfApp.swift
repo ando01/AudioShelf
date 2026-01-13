@@ -11,6 +11,14 @@ import UIKit
 import CarPlay
 
 class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        print("🔧 App did finish launching")
+        print("🔧 Available scene roles:")
+        print("🔧   - carTemplateApplication: \(UISceneSession.Role.carTemplateApplication.rawValue)")
+        print("🔧   - windowApplication: \(UISceneSession.Role.windowApplication.rawValue)")
+        return true
+    }
+
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return .portrait
     }
@@ -20,10 +28,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
-        print("🔧 Scene configuration requested for role: \(connectingSceneSession.role.rawValue)")
+        print("🔧 ========================================")
+        print("🔧 Scene configuration requested")
+        print("🔧 Role: \(connectingSceneSession.role.rawValue)")
+        print("🔧 Role type: \(type(of: connectingSceneSession.role))")
+        print("🔧 Is carTemplateApplication? \(connectingSceneSession.role == .carTemplateApplication)")
+        print("🔧 ========================================")
 
         if connectingSceneSession.role == .carTemplateApplication {
-            print("🔧 Creating CarPlay scene configuration")
+            print("🔧 ✅ Creating CarPlay scene configuration")
             let sceneConfig = UISceneConfiguration(
                 name: "CarPlay",
                 sessionRole: connectingSceneSession.role
