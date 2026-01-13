@@ -8,10 +8,33 @@
 import SwiftUI
 import AVFoundation
 import UIKit
+import CarPlay
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return .portrait
+    }
+
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        // Check if this is a CarPlay scene
+        if connectingSceneSession.role == .carTemplateApplication {
+            let sceneConfig = UISceneConfiguration(
+                name: "CarPlay Configuration",
+                sessionRole: connectingSceneSession.role
+            )
+            sceneConfig.delegateClass = CarPlaySceneDelegate.self
+            return sceneConfig
+        }
+
+        // Default configuration for regular app scenes
+        return UISceneConfiguration(
+            name: "Default Configuration",
+            sessionRole: connectingSceneSession.role
+        )
     }
 }
 
