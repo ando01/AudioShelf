@@ -11,17 +11,23 @@ import AppIntents
 struct PlayLatestEpisodeIntent: AppIntent {
     static var title: LocalizedStringResource = "Play Latest Episode"
 
-    static var description = IntentDescription("Plays the latest episode of a podcast")
+    static var description = IntentDescription("Plays the latest episode from a podcast")
 
     static var openAppWhenRun: Bool = true
 
-    @Parameter(title: "Podcast", requestValueDialog: IntentDialog("Which podcast?"))
+    @Parameter(title: "Podcast")
     var podcast: PodcastEntity?
 
     static var parameterSummary: some ParameterSummary {
         Summary("Play latest episode") {
             \.$podcast
         }
+    }
+
+    init() {}
+
+    init(podcast: PodcastEntity?) {
+        self.podcast = podcast
     }
 
     @MainActor
@@ -45,7 +51,7 @@ struct PlayLatestEpisodeIntent: AppIntent {
         // Determine which podcast to use
         let targetPodcast: Podcast
         if let podcastParam = podcast {
-            // User specified a podcast
+            // User specified a podcast - find it by ID
             guard let found = podcasts.first(where: { $0.id == podcastParam.id }) else {
                 throw PlaybackError.podcastNotFound
             }
