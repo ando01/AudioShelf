@@ -12,26 +12,16 @@ import CarPlay
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
-        print("🔧 App did finish launching")
-        print("🔧 Available scene roles:")
-        print("🔧   - carTemplateApplication: \(UISceneSession.Role.carTemplateApplication.rawValue)")
-        print("🔧   - windowApplication: \(UISceneSession.Role.windowApplication.rawValue)")
-
         // Set minimum background fetch interval
         application.setMinimumBackgroundFetchInterval(UIApplication.backgroundFetchIntervalMinimum)
-        print("📱 Background fetch configured")
-
         return true
     }
 
     func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
-        print("📱 Background fetch triggered")
-
         // Perform background refresh of podcast data
         Task {
             do {
                 guard AudioBookshelfAPI.shared.isLoggedIn else {
-                    print("📱 Not logged in, skipping background fetch")
                     completionHandler(.noData)
                     return
                 }
@@ -42,14 +32,11 @@ class AppDelegate: NSObject, UIApplicationDelegate {
                 // Find podcast library and refresh its data
                 if let podcastLibrary = libraries.first(where: { $0.mediaType == "podcast" }) {
                     _ = try await AudioBookshelfAPI.shared.getPodcasts(libraryId: podcastLibrary.id)
-                    print("📱 Background fetch completed successfully")
                     completionHandler(.newData)
                 } else {
-                    print("📱 No podcast library found")
                     completionHandler(.noData)
                 }
             } catch {
-                print("📱 Background fetch failed: \(error)")
                 completionHandler(.failed)
             }
         }
@@ -64,30 +51,19 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
-        print("🔧 ========================================")
-        print("🔧 Scene configuration requested")
-        print("🔧 Role: \(connectingSceneSession.role.rawValue)")
-        print("🔧 Role type: \(type(of: connectingSceneSession.role))")
-        print("🔧 Is carTemplateApplication? \(connectingSceneSession.role == .carTemplateApplication)")
-        print("🔧 ========================================")
-
         if connectingSceneSession.role == .carTemplateApplication {
-            print("🔧 ✅ Creating CarPlay scene configuration")
             let sceneConfig = UISceneConfiguration(
                 name: "CarPlay",
                 sessionRole: connectingSceneSession.role
             )
             sceneConfig.delegateClass = CarPlaySceneDelegate.self
-            print("🔧 Delegate class set to: \(String(describing: sceneConfig.delegateClass))")
             return sceneConfig
         }
 
-        print("🔧 Creating default scene configuration")
-        let config = UISceneConfiguration(
+        return UISceneConfiguration(
             name: "Default",
             sessionRole: connectingSceneSession.role
         )
-        return config
     }
 }
 

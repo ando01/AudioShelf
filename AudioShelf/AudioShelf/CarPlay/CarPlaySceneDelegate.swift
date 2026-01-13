@@ -23,17 +23,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         _ templateApplicationScene: CPTemplateApplicationScene,
         didConnect interfaceController: CPInterfaceController
     ) {
-        print("🚗 CarPlay delegate method called - didConnect")
         self.interfaceController = interfaceController
-
-        print("🚗 CarPlay connected - interface controller set")
-
-        // Initialize view model
-        print("🚗 Creating PodcastListViewModel")
         podcastListViewModel = PodcastListViewModel()
 
-        // Load data and setup interface
-        print("🚗 Starting setupCarPlayInterface task")
         Task {
             await setupCarPlayInterface()
         }
@@ -43,7 +35,6 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         _ templateApplicationScene: CPTemplateApplicationScene,
         didDisconnect interfaceController: CPInterfaceController
     ) {
-        print("🚗 CarPlay disconnected")
         self.interfaceController = nil
         self.podcastListViewModel = nil
         templateManager.clearArtworkCache()
@@ -53,44 +44,30 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
 
     @MainActor
     private func setupCarPlayInterface() async {
-        print("🚗 setupCarPlayInterface started")
-        guard let viewModel = podcastListViewModel else {
-            print("🚗 ERROR: No viewModel!")
-            return
-        }
+        guard let viewModel = podcastListViewModel else { return }
 
         // Load libraries and podcasts
-        print("🚗 Loading libraries...")
         await viewModel.loadLibraries()
-        print("🚗 Libraries loaded: \(viewModel.libraries.count)")
 
         // For now, select first library if available
         if let firstLibrary = viewModel.libraries.first {
-            print("🚗 Loading podcasts for library: \(firstLibrary.name)")
             await viewModel.loadPodcasts(for: firstLibrary)
-            print("🚗 Podcasts loaded: \(viewModel.podcasts.count)")
         }
 
         // Create templates
-        print("🚗 Creating podcast list template...")
         let podcastsTemplate = createPodcastListTemplate()
-        print("🚗 Creating now playing template...")
         let nowPlayingTemplate = templateManager.createNowPlayingTemplate()
 
         // Create tab bar with both templates
-        print("🚗 Creating tab bar template...")
         let tabBarTemplate = templateManager.createTabBarTemplate(
             podcastsTemplate: podcastsTemplate,
             nowPlayingTemplate: nowPlayingTemplate
         )
 
         // Set as root template
-        print("🚗 Setting root template...")
         interfaceController?.setRootTemplate(tabBarTemplate, animated: true) { success, error in
             if let error = error {
-                print("🚗 ERROR: Failed to set root template: \(error)")
-            } else {
-                print("🚗 SUCCESS: CarPlay interface setup complete")
+                print("Failed to set root template: \(error)")
             }
         }
     }
