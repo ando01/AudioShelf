@@ -1,35 +1,21 @@
 //
-//  PlayLatestEpisodeIntent.swift
+//  PlayLatestFromDefaultIntent.swift
 //  AudioShelf
 //
-//  Created by Claude on 2026-01-12.
+//  Created by Claude on 2026-01-13.
 //
 
 import Foundation
 import AppIntents
 
-struct PlayLatestEpisodeIntent: AppIntent {
-    static var title: LocalizedStringResource = "Play Latest Episode of Podcast"
+struct PlayLatestFromDefaultIntent: AppIntent {
+    static var title: LocalizedStringResource = "Play Latest Episode"
 
-    static var description = IntentDescription("Plays the latest episode from a specific podcast")
+    static var description = IntentDescription("Plays the latest episode from your most recent podcast")
 
     static var openAppWhenRun: Bool = true
 
-    @Parameter(title: "Podcast")
-    var podcast: PodcastEntity
-
-    static var parameterSummary: some ParameterSummary {
-        Summary("Play latest episode of \(\.$podcast)")
-    }
-
-    init() {
-        // Required for AppIntent
-        self.podcast = PodcastEntity(id: "", displayString: "")
-    }
-
-    init(podcast: PodcastEntity) {
-        self.podcast = podcast
-    }
+    init() {}
 
     @MainActor
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -46,9 +32,9 @@ struct PlayLatestEpisodeIntent: AppIntent {
 
         let podcasts = try await AudioBookshelfAPI.shared.getPodcasts(libraryId: podcastLibrary.id)
 
-        // Find the specified podcast by ID
-        guard let targetPodcast = podcasts.first(where: { $0.id == podcast.id }) else {
-            throw PlaybackError.podcastNotFound
+        // Use the most recently updated podcast (first in the sorted list)
+        guard let targetPodcast = podcasts.first else {
+            throw PlaybackError.noPodcastsFound
         }
 
         // Fetch episodes for the podcast
@@ -101,40 +87,5 @@ struct PlayLatestEpisodeIntent: AppIntent {
         }
 
         return audioURL
-    }
-}
-
-enum PlaybackError: Error, LocalizedError {
-    case notLoggedIn
-    case noEpisodesFound
-    case noLibraryFound
-    case podcastNotFound
-    case noPodcastsFound
-    case serverURLNotAvailable
-    case audioFileNotAvailable
-    case notAuthenticated
-    case invalidAudioURL
-
-    var errorDescription: String? {
-        switch self {
-        case .notLoggedIn:
-            return "You need to be logged in to play episodes"
-        case .noEpisodesFound:
-            return "No episodes found for this podcast"
-        case .noLibraryFound:
-            return "No podcast library found"
-        case .podcastNotFound:
-            return "Podcast not found"
-        case .noPodcastsFound:
-            return "No podcasts found in your library"
-        case .serverURLNotAvailable:
-            return "Server URL not available"
-        case .audioFileNotAvailable:
-            return "Audio file not available"
-        case .notAuthenticated:
-            return "Not authenticated"
-        case .invalidAudioURL:
-            return "Invalid audio URL"
-        }
     }
 }
