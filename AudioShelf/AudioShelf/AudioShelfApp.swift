@@ -16,7 +16,43 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         print("🔧 Available scene roles:")
         print("🔧   - carTemplateApplication: \(UISceneSession.Role.carTemplateApplication.rawValue)")
         print("🔧   - windowApplication: \(UISceneSession.Role.windowApplication.rawValue)")
+
+        // Set minimum background fetch interval
+        application.setMinimumBackgroundFetchInterval(UIApplication.backgroundFetchIntervalMinimum)
+        print("📱 Background fetch configured")
+
         return true
+    }
+
+    func application(_ application: UIApplication, performFetchWithCompletionHandler completionHandler: @escaping (UIBackgroundFetchResult) -> Void) {
+        print("📱 Background fetch triggered")
+
+        // Perform background refresh of podcast data
+        Task {
+            do {
+                guard AudioBookshelfAPI.shared.isLoggedIn else {
+                    print("📱 Not logged in, skipping background fetch")
+                    completionHandler(.noData)
+                    return
+                }
+
+                // Fetch libraries to refresh podcast data
+                let libraries = try await AudioBookshelfAPI.shared.getLibraries()
+
+                // Find podcast library and refresh its data
+                if let podcastLibrary = libraries.first(where: { $0.mediaType == "podcast" }) {
+                    _ = try await AudioBookshelfAPI.shared.getPodcasts(libraryId: podcastLibrary.id)
+                    print("📱 Background fetch completed successfully")
+                    completionHandler(.newData)
+                } else {
+                    print("📱 No podcast library found")
+                    completionHandler(.noData)
+                }
+            } catch {
+                print("📱 Background fetch failed: \(error)")
+                completionHandler(.failed)
+            }
+        }
     }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {

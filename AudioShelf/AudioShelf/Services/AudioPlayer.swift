@@ -317,6 +317,39 @@ class AudioPlayer {
             self.seek(to: event.positionTime)
             return .success
         }
+
+        // Playback rate command (speed control)
+        commandCenter.changePlaybackRateCommand.isEnabled = true
+        commandCenter.changePlaybackRateCommand.supportedPlaybackRates = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+        commandCenter.changePlaybackRateCommand.addTarget { [weak self] event in
+            guard let self = self,
+                  let event = event as? MPChangePlaybackRateCommandEvent else {
+                return .commandFailed
+            }
+            self.setPlaybackSpeed(event.playbackRate)
+            return .success
+        }
+
+        // Bookmark command (if available in iOS)
+        if #available(iOS 13.0, *) {
+            commandCenter.bookmarkCommand.isEnabled = true
+            commandCenter.bookmarkCommand.addTarget { [weak self] _ in
+                guard let self = self,
+                      let episode = self.currentEpisode else {
+                    return .commandFailed
+                }
+
+                // Add bookmark at current time
+                let bookmarkService = BookmarkService.shared
+                bookmarkService.addBookmark(
+                    episodeId: episode.id,
+                    timestamp: self.currentTime,
+                    note: "Bookmarked from lock screen"
+                )
+                print("📌 Bookmark added at \(self.currentTime)s")
+                return .success
+            }
+        }
     }
 
     private func updateNowPlayingInfo() {
