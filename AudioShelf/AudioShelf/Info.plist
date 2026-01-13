@@ -14,5 +14,18 @@
 	<true/>
 	<key>NSSiriUsageDescription</key>
 	<string>AudioShelf uses Siri to play your latest podcast episodes with voice commands.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>CPTemplateApplicationSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>CarPlay</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 </dict>
 </plist>

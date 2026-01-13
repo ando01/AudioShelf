@@ -20,21 +20,25 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
-        // Check if this is a CarPlay scene
+        print("🔧 Scene configuration requested for role: \(connectingSceneSession.role.rawValue)")
+
         if connectingSceneSession.role == .carTemplateApplication {
+            print("🔧 Creating CarPlay scene configuration")
             let sceneConfig = UISceneConfiguration(
-                name: "CarPlay Configuration",
+                name: "CarPlay",
                 sessionRole: connectingSceneSession.role
             )
             sceneConfig.delegateClass = CarPlaySceneDelegate.self
+            print("🔧 Delegate class set to: \(String(describing: sceneConfig.delegateClass))")
             return sceneConfig
         }
 
-        // Default configuration for regular app scenes
-        return UISceneConfiguration(
-            name: "Default Configuration",
+        print("🔧 Creating default scene configuration")
+        let config = UISceneConfiguration(
+            name: "Default",
             sessionRole: connectingSceneSession.role
         )
+        return config
     }
 }
 
