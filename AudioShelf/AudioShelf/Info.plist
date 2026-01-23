@@ -6,7 +6,6 @@
 	<array>
 		<string>audio</string>
 		<string>fetch</string>
-		<string>processing</string>
 	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
@@ -27,6 +26,8 @@
 					<string>CarPlay</string>
 					<key>UISceneClassName</key>
 					<string>CPTemplateApplicationScene</string>
+					<key>UISceneDelegateClassName</key>
+					<string>CarPlaySceneDelegate</string>
 				</dict>
 			</array>
 		</dict>

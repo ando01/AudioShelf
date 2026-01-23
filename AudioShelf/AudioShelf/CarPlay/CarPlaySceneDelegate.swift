@@ -10,24 +10,24 @@ import UIKit
 
 @objc(CarPlaySceneDelegate)
 class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
-    private let api = AudioBookshelfAPI.shared
-    private let audioPlayer = AudioPlayer.shared
-    private let templateManager = CarPlayTemplateManager()
 
     private var interfaceController: CPInterfaceController?
-    private var podcastListViewModel: PodcastListViewModel?
+    private var podcasts: [Podcast] = []
+    private var artworkCache: [String: UIImage] = [:]
 
-    // MARK: - Scene Lifecycle
+    // MARK: - CPTemplateApplicationSceneDelegate
 
     @objc func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
         didConnect interfaceController: CPInterfaceController
     ) {
+        print("CarPlay: Did connect")
         self.interfaceController = interfaceController
-        podcastListViewModel = PodcastListViewModel()
 
-        Task {
-            await setupCarPlayInterface()
+        // Set root template immediately on main thread
+        DispatchQueue.main.async { [weak self] in
+            self?.setupRootTemplate()
+            self?.loadPodcastData()
         }
     }
 
@@ -35,231 +35,210 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         _ templateApplicationScene: CPTemplateApplicationScene,
         didDisconnect interfaceController: CPInterfaceController
     ) {
+        print("CarPlay: Did disconnect")
         self.interfaceController = nil
-        self.podcastListViewModel = nil
-        templateManager.clearArtworkCache()
+        self.podcasts = []
+        self.artworkCache = [:]
     }
 
-    // MARK: - Interface Setup
+    // MARK: - Template Setup
 
-    @MainActor
-    private func setupCarPlayInterface() async {
-        guard let viewModel = podcastListViewModel else { return }
+    private func setupRootTemplate() {
+        print("CarPlay: Setting up root template")
 
-        // Load libraries and podcasts
-        await viewModel.loadLibraries()
+        // Create loading state
+        let loadingItem = CPListItem(text: "Loading...", detailText: "Please wait")
+        loadingItem.isEnabled = false
 
-        // For now, select first library if available
-        if let firstLibrary = viewModel.libraries.first {
-            await viewModel.loadPodcasts(for: firstLibrary)
-        }
-
-        // Create templates
-        let podcastsTemplate = createPodcastListTemplate()
-        let nowPlayingTemplate = templateManager.createNowPlayingTemplate()
-
-        // Create tab bar with both templates
-        let tabBarTemplate = templateManager.createTabBarTemplate(
-            podcastsTemplate: podcastsTemplate,
-            nowPlayingTemplate: nowPlayingTemplate
+        let podcastsTemplate = CPListTemplate(
+            title: "Podcasts",
+            sections: [CPListSection(items: [loadingItem])]
         )
+        podcastsTemplate.tabTitle = "Podcasts"
+        podcastsTemplate.tabImage = UIImage(systemName: "headphones")
 
-        // Set as root template
-        interfaceController?.setRootTemplate(tabBarTemplate, animated: true) { success, error in
+        let nowPlayingTemplate = CPNowPlayingTemplate.shared
+        nowPlayingTemplate.tabTitle = "Now Playing"
+        nowPlayingTemplate.tabImage = UIImage(systemName: "play.circle.fill")
+
+        let tabBar = CPTabBarTemplate(templates: [podcastsTemplate, nowPlayingTemplate])
+
+        interfaceController?.setRootTemplate(tabBar, animated: false) { success, error in
             if let error = error {
-                print("Failed to set root template: \(error)")
+                print("CarPlay: Failed to set root template - \(error.localizedDescription)")
+            } else {
+                print("CarPlay: Root template set successfully")
             }
         }
     }
 
-    // MARK: - Podcast List
+    // MARK: - Data Loading
 
-    private func createPodcastListTemplate() -> CPListTemplate {
-        guard let viewModel = podcastListViewModel else {
-            return CPListTemplate(title: "Podcasts", sections: [])
+    private func loadPodcastData() {
+        print("CarPlay: Loading podcast data")
+
+        guard AudioBookshelfAPI.shared.isLoggedIn else {
+            print("CarPlay: Not logged in")
+            updatePodcastList(with: [], message: "Please log in to the app first")
+            return
         }
 
-        return templateManager.createPodcastListTemplate(
-            podcasts: viewModel.podcasts,
-            onSelectPodcast: { [weak self] podcast in
-                self?.showEpisodeList(for: podcast)
-            },
-            onGenreFilter: { [weak self] in
-                self?.showGenreFilter()
-            },
-            onSortOptions: { [weak self] in
-                self?.showSortOptions()
-            }
-        )
-    }
-
-    private func refreshPodcastList() {
-        guard let interfaceController = interfaceController else { return }
-
-        // Find the current tab bar template
-        if let tabBarTemplate = interfaceController.rootTemplate as? CPTabBarTemplate,
-           let podcastsTemplate = tabBarTemplate.templates.first as? CPListTemplate {
-
-            // Get the updated podcasts
-            guard let viewModel = podcastListViewModel else { return }
-
-            // Create new template with updated data
-            let newTemplate = templateManager.createPodcastListTemplate(
-                podcasts: viewModel.podcasts,
-                onSelectPodcast: { [weak self] podcast in
-                    self?.showEpisodeList(for: podcast)
-                },
-                onGenreFilter: { [weak self] in
-                    self?.showGenreFilter()
-                },
-                onSortOptions: { [weak self] in
-                    self?.showSortOptions()
-                }
-            )
-
-            // Update the sections in place
-            podcastsTemplate.updateSections(newTemplate.sections)
-        }
-    }
-
-    // MARK: - Episode List
-
-    private func showEpisodeList(for podcast: Podcast) {
         Task {
-            // Load episodes
-            let episodes = await loadEpisodes(for: podcast.id)
+            do {
+                // Load libraries
+                let libraries = try await AudioBookshelfAPI.shared.getLibraries()
+                print("CarPlay: Found \(libraries.count) libraries")
 
-            // Create episode list template
-            let episodeTemplate = templateManager.createEpisodeListTemplate(
-                podcast: podcast,
-                episodes: episodes,
-                onSelectEpisode: { [weak self] episode in
-                    self?.playEpisode(episode, from: podcast)
+                // Find podcast library
+                guard let podcastLibrary = libraries.first(where: { $0.mediaType == "podcast" }) else {
+                    print("CarPlay: No podcast library found")
+                    await MainActor.run {
+                        self.updatePodcastList(with: [], message: "No podcast library found")
+                    }
+                    return
                 }
-            )
 
-            // Push onto navigation stack
-            interfaceController?.pushTemplate(episodeTemplate, animated: true) { success, error in
-                if let error = error {
-                    print("Failed to push episode template: \(error)")
+                // Load podcasts
+                let podcasts = try await AudioBookshelfAPI.shared.getPodcasts(libraryId: podcastLibrary.id)
+                print("CarPlay: Found \(podcasts.count) podcasts")
+
+                await MainActor.run {
+                    self.podcasts = podcasts
+                    self.updatePodcastList(with: podcasts, message: nil)
+                }
+            } catch {
+                print("CarPlay: Error loading data - \(error.localizedDescription)")
+                await MainActor.run {
+                    self.updatePodcastList(with: [], message: "Failed to load podcasts")
                 }
             }
         }
     }
 
-    private func loadEpisodes(for podcastId: String) async -> [Episode] {
-        do {
-            return try await api.getEpisodes(podcastId: podcastId)
-        } catch {
-            print("Failed to load episodes: \(error)")
-            return []
+    private func updatePodcastList(with podcasts: [Podcast], message: String?) {
+        print("CarPlay: Updating podcast list with \(podcasts.count) items")
+
+        guard let interfaceController = interfaceController,
+              let tabBar = interfaceController.rootTemplate as? CPTabBarTemplate,
+              let podcastsTemplate = tabBar.templates.first as? CPListTemplate else {
+            print("CarPlay: Cannot update - no template found")
+            return
         }
+
+        var items: [CPListItem] = []
+
+        if let message = message {
+            let messageItem = CPListItem(text: message, detailText: nil)
+            messageItem.isEnabled = false
+            items.append(messageItem)
+        } else {
+            for podcast in podcasts {
+                let item = CPListItem(text: podcast.title, detailText: podcast.author)
+                item.handler = { [weak self] _, completion in
+                    self?.showEpisodes(for: podcast)
+                    completion()
+                }
+                items.append(item)
+            }
+        }
+
+        podcastsTemplate.updateSections([CPListSection(items: items)])
+        print("CarPlay: Podcast list updated")
+    }
+
+    // MARK: - Episodes
+
+    private func showEpisodes(for podcast: Podcast) {
+        print("CarPlay: Showing episodes for \(podcast.title)")
+
+        // Show loading
+        let loadingItem = CPListItem(text: "Loading episodes...", detailText: nil)
+        loadingItem.isEnabled = false
+        let loadingTemplate = CPListTemplate(
+            title: podcast.title,
+            sections: [CPListSection(items: [loadingItem])]
+        )
+
+        interfaceController?.pushTemplate(loadingTemplate, animated: true) { [weak self] success, error in
+            if success {
+                self?.loadEpisodes(for: podcast)
+            } else if let error = error {
+                print("CarPlay: Failed to push loading template - \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func loadEpisodes(for podcast: Podcast) {
+        Task {
+            do {
+                let episodes = try await AudioBookshelfAPI.shared.getEpisodes(podcastId: podcast.id)
+                print("CarPlay: Loaded \(episodes.count) episodes")
+
+                await MainActor.run {
+                    self.updateEpisodeList(episodes: episodes, podcast: podcast)
+                }
+            } catch {
+                print("CarPlay: Failed to load episodes - \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func updateEpisodeList(episodes: [Episode], podcast: Podcast) {
+        guard let interfaceController = interfaceController,
+              let currentTemplate = interfaceController.topTemplate as? CPListTemplate else {
+            return
+        }
+
+        var items: [CPListItem] = []
+
+        for episode in episodes {
+            let item = CPListItem(
+                text: episode.displayTitle,
+                detailText: episode.formattedPublishedDate
+            )
+            item.handler = { [weak self] _, completion in
+                self?.playEpisode(episode, from: podcast)
+                completion()
+            }
+            items.append(item)
+        }
+
+        currentTemplate.updateSections([CPListSection(items: items)])
     }
 
     // MARK: - Playback
 
     private func playEpisode(_ episode: Episode, from podcast: Podcast) {
-        // Construct audio URL (similar to EpisodeDetailViewModel)
+        print("CarPlay: Playing \(episode.displayTitle)")
+
+        let api = AudioBookshelfAPI.shared
+
         guard let serverURL = api.serverURL else {
-            print("Server URL not available")
-            showErrorAlert(message: "Unable to play episode")
+            print("CarPlay: No server URL")
             return
         }
 
-        // Get audio URL from enclosure
-        let audioPath: String
-        if let enclosureUrl = episode.enclosure?.url {
-            audioPath = enclosureUrl
-        } else {
-            print("Audio file not available")
-            showErrorAlert(message: "Unable to play episode")
+        guard let enclosureUrl = episode.enclosure?.url else {
+            print("CarPlay: No audio URL")
             return
         }
 
-        // If the path is already a full URL, use it directly
         let audioURLString: String
-        if audioPath.hasPrefix("http://") || audioPath.hasPrefix("https://") {
-            audioURLString = audioPath
+        if enclosureUrl.hasPrefix("http://") || enclosureUrl.hasPrefix("https://") {
+            audioURLString = enclosureUrl
         } else {
-            // Otherwise, construct URL with server and add auth token
             guard let token = api.authToken else {
-                print("Not authenticated")
-                showErrorAlert(message: "Unable to play episode")
+                print("CarPlay: No auth token")
                 return
             }
-            audioURLString = "\(serverURL)\(audioPath)?token=\(token)"
+            audioURLString = "\(serverURL)\(enclosureUrl)?token=\(token)"
         }
 
         guard let audioURL = URL(string: audioURLString) else {
-            print("Invalid audio URL")
-            showErrorAlert(message: "Unable to play episode")
+            print("CarPlay: Invalid URL")
             return
         }
 
-        // Start playback
-        audioPlayer.play(episode: episode, audioURL: audioURL, podcast: podcast)
-
-        print("Playing episode: \(episode.displayTitle)")
-    }
-
-    // MARK: - Genre Filter
-
-    private func showGenreFilter() {
-        guard let viewModel = podcastListViewModel else { return }
-
-        let actionSheet = templateManager.createGenreFilterActionSheet(
-            availableGenres: viewModel.availableGenres,
-            currentGenre: viewModel.selectedGenre,
-            onSelectGenre: { [weak self] genre in
-                self?.applyGenreFilter(genre)
-            }
-        )
-
-        interfaceController?.presentTemplate(actionSheet, animated: true) { success, error in
-            if let error = error {
-                print("Failed to present genre filter: \(error)")
-            }
-        }
-    }
-
-    private func applyGenreFilter(_ genre: String?) {
-        podcastListViewModel?.setGenreFilter(genre)
-        refreshPodcastList()
-    }
-
-    // MARK: - Sort Options
-
-    private func showSortOptions() {
-        guard let viewModel = podcastListViewModel else { return }
-
-        let actionSheet = templateManager.createSortOptionsActionSheet(
-            currentSort: viewModel.sortOption,
-            onSelectSort: { [weak self] sortOption in
-                self?.applySortOption(sortOption)
-            }
-        )
-
-        interfaceController?.presentTemplate(actionSheet, animated: true) { success, error in
-            if let error = error {
-                print("Failed to present sort options: \(error)")
-            }
-        }
-    }
-
-    private func applySortOption(_ sortOption: SortOption) {
-        podcastListViewModel?.setSortOption(sortOption)
-        refreshPodcastList()
-    }
-
-    // MARK: - Error Handling
-
-    private func showErrorAlert(message: String) {
-        let alert = templateManager.createErrorAlert(message: message)
-
-        interfaceController?.presentTemplate(alert, animated: true) { success, error in
-            if let error = error {
-                print("Failed to present error alert: \(error)")
-            }
-        }
+        AudioPlayer.shared.play(episode: episode, audioURL: audioURL, podcast: podcast)
     }
 }

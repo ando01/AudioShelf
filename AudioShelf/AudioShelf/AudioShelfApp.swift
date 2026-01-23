@@ -8,7 +8,6 @@
 import SwiftUI
 import AVFoundation
 import UIKit
-import CarPlay
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
@@ -44,26 +43,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return .portrait
-    }
-
-    func application(
-        _ application: UIApplication,
-        configurationForConnecting connectingSceneSession: UISceneSession,
-        options: UIScene.ConnectionOptions
-    ) -> UISceneConfiguration {
-        if connectingSceneSession.role == .carTemplateApplication {
-            let sceneConfig = UISceneConfiguration(
-                name: "CarPlay",
-                sessionRole: connectingSceneSession.role
-            )
-            sceneConfig.delegateClass = CarPlaySceneDelegate.self
-            return sceneConfig
-        }
-
-        return UISceneConfiguration(
-            name: "Default",
-            sessionRole: connectingSceneSession.role
-        )
     }
 }
 
