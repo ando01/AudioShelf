@@ -54,16 +54,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             title: "Podcasts",
             sections: [CPListSection(items: [loadingItem])]
         )
-        podcastsTemplate.tabTitle = "Podcasts"
-        podcastsTemplate.tabImage = UIImage(systemName: "headphones")
 
-        let nowPlayingTemplate = CPNowPlayingTemplate.shared
-        nowPlayingTemplate.tabTitle = "Now Playing"
-        nowPlayingTemplate.tabImage = UIImage(systemName: "play.circle.fill")
-
-        let tabBar = CPTabBarTemplate(templates: [podcastsTemplate, nowPlayingTemplate])
-
-        interfaceController?.setRootTemplate(tabBar, animated: false) { success, error in
+        // Set the list template as root (CPNowPlayingTemplate is shown automatically by the system)
+        interfaceController?.setRootTemplate(podcastsTemplate, animated: false) { success, error in
             if let error = error {
                 print("CarPlay: Failed to set root template - \(error.localizedDescription)")
             } else {
@@ -119,8 +112,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         print("CarPlay: Updating podcast list with \(podcasts.count) items")
 
         guard let interfaceController = interfaceController,
-              let tabBar = interfaceController.rootTemplate as? CPTabBarTemplate,
-              let podcastsTemplate = tabBar.templates.first as? CPListTemplate else {
+              let podcastsTemplate = interfaceController.rootTemplate as? CPListTemplate else {
             print("CarPlay: Cannot update - no template found")
             return
         }
