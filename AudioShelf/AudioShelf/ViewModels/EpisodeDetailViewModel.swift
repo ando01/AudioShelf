@@ -5,8 +5,9 @@
 //  Created by Claude on 2026-01-07.
 //
 
-import Foundation
+import AVFoundation
 import Combine
+import Foundation
 
 @Observable
 class EpisodeDetailViewModel {
@@ -26,6 +27,10 @@ class EpisodeDetailViewModel {
     private let downloadManager = EpisodeDownloadManager.shared
     private var progressRefreshTimer: Timer?
 
+    // Pre-buffering support
+    private var preBufferedAssets: [String: AVURLAsset] = [:]
+    private var preBufferTasks: [String: Task<Void, Never>] = [:]
+
     init(audioPlayer: AudioPlayer, podcast: Podcast) {
         self.audioPlayer = audioPlayer
         self.podcast = podcast
@@ -34,6 +39,7 @@ class EpisodeDetailViewModel {
 
     deinit {
         stopProgressRefreshTimer()
+        cancelAllPreBuffering()
     }
 
     private func startProgressRefreshTimer() {
@@ -260,5 +266,24 @@ class EpisodeDetailViewModel {
     func stopPlayback() {
         audioPlayer.stop()
         selectedEpisode = nil
+    }
+
+    // MARK: - Pre-buffering Support
+
+    // Pre-buffering disabled for now - was causing AttributeGraph cycles
+    func startPreBuffering(for episode: Episode) {
+        // Disabled
+    }
+
+    func cancelPreBuffering(for episode: Episode) {
+        // Disabled
+    }
+
+    private func cancelAllPreBuffering() {
+        for (_, task) in preBufferTasks {
+            task.cancel()
+        }
+        preBufferTasks.removeAll()
+        preBufferedAssets.removeAll()
     }
 }

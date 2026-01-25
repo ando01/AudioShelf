@@ -350,9 +350,10 @@ struct EpisodeRow: View {
         .onAppear {
             loadBookmarks()
         }
-        .onChange(of: isExpanded) {
-            if isExpanded {
+        .onChange(of: isExpanded) { _, newValue in
+            if newValue {
                 loadBookmarks()
+                // Pre-buffering is triggered by the parent view
             }
         }
     }

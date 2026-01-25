@@ -19,9 +19,15 @@ class AudioPlayer {
     private var timeObserver: Any?
     private var cachedArtwork: MPMediaItemArtwork?
     private let progressService = PlaybackProgressService.shared
+    private let metadataCache = AudioMetadataCache.shared
     private var lastSaveTime: Double = 0
 
+    // Status observation for readiness-based seeking
+    private var statusObservation: NSKeyValueObservation?
+    private var pendingSeekTime: Double?
+
     var isPlaying = false
+    var isBuffering = false  // Kept for compatibility but not actively used
     var currentTime: Double = 0
     var duration: Double = 0
     var currentEpisode: Episode?
@@ -32,8 +38,9 @@ class AudioPlayer {
         configureAudioSession()
         setupRemoteCommandCenter()
         setupAudioSessionNotifications()
-        // Clean up old progress on launch
+        // Clean up old progress and expired metadata on launch
         progressService.cleanupOldProgress()
+        metadataCache.cleanupExpiredEntries()
     }
 
     private func setupAudioSessionNotifications() {
@@ -77,23 +84,41 @@ class AudioPlayer {
             currentPodcast = podcast
             cachedArtwork = nil  // Clear cached artwork for new episode
 
-            // Debug: Check what duration we have
-            print("DEBUG: Episode title: \(episode.displayTitle)")
-            print("DEBUG: Episode.durationSeconds value: \(episode.durationSeconds?.description ?? "nil")")
-            print("DEBUG: Episode.formattedDuration: \(episode.formattedDuration)")
-
-            // Set duration from episode metadata immediately (more reliable than AVPlayer)
-            if let episodeDuration = episode.durationSeconds, episodeDuration > 0 {
+            // Set duration from multiple sources in order of preference
+            // 1. Cached metadata (fastest)
+            // 2. Episode metadata from API
+            // 3. AVPlayer will load it (slowest, fallback)
+            if let cachedDuration = metadataCache.getDuration(episodeId: episode.id), cachedDuration > 0 {
+                self.duration = cachedDuration
+                print("✅ Using cached duration: \(cachedDuration) seconds")
+            } else if let episodeDuration = episode.durationSeconds, episodeDuration > 0 {
                 self.duration = episodeDuration
+                // Cache it for next time
+                metadataCache.cacheDuration(episodeId: episode.id, duration: episodeDuration)
                 print("✅ Using episode duration from metadata: \(episodeDuration) seconds")
             } else {
-                print("⚠️ Episode duration is nil or 0, waiting for AVPlayer...")
+                print("⚠️ Episode duration unknown, waiting for AVPlayer...")
             }
 
-            let playerItem = AVPlayerItem(url: audioURL)
+            // Check for saved progress - store for seeking when ready
+            if let savedProgress = progressService.getProgress(episodeId: episode.id),
+               savedProgress.currentTime > 5.0,
+               savedProgress.percentComplete < 0.95 {
+                pendingSeekTime = savedProgress.currentTime
+                print("📍 Will resume from \(savedProgress.currentTime) seconds when ready")
+            } else {
+                pendingSeekTime = nil
+            }
+
+            // Create player item with optimized buffering
+            let playerItem = createOptimizedPlayerItem(url: audioURL)
             player = AVPlayer(playerItem: playerItem)
 
-            // Still observe AVPlayer duration as fallback
+            // Configure player for fast startup
+            player?.automaticallyWaitsToMinimizeStalling = false
+
+            // Set up status observer for readiness-based seeking
+            setupStatusObserver(for: playerItem)
             observeDuration()
 
             // Observe time updates
@@ -119,24 +144,68 @@ class AudioPlayer {
                 cachedArtwork = await loadArtwork()
                 updateNowPlayingInfo()
             }
-
-            // Load saved progress and resume
-            if let savedProgress = progressService.getProgress(episodeId: episode.id),
-               savedProgress.currentTime > 5.0,  // Only resume if >5 seconds in
-               savedProgress.percentComplete < 0.95 {  // Don't resume if nearly done
-
-                // Seek after a brief delay to ensure player is ready
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    print("Resuming from \(savedProgress.currentTime) seconds")
-                    self.seek(to: savedProgress.currentTime)
-                }
-            }
         }
 
         player?.play()
         player?.rate = playbackSpeed
         isPlaying = true
         updateNowPlayingInfo()
+    }
+
+    /// Creates an AVPlayerItem with optimized buffering configuration
+    private func createOptimizedPlayerItem(url: URL) -> AVPlayerItem {
+        // Create player item directly from URL
+        // The URL already contains authentication token as query parameter
+        let playerItem = AVPlayerItem(url: url)
+
+        // Configure buffering for fast startup
+        // 10 seconds of forward buffer is enough to start quickly while still having smooth playback
+        playerItem.preferredForwardBufferDuration = 10
+
+        return playerItem
+    }
+
+    /// Sets up observer for player item status to handle pending seeks
+    private func setupStatusObserver(for playerItem: AVPlayerItem) {
+        // Clean up previous observer
+        statusObservation?.invalidate()
+
+        // Observe player item status for readiness (for pending seek)
+        statusObservation = playerItem.observe(\.status, options: [.new]) { [weak self] item, _ in
+            DispatchQueue.main.async {
+                self?.handlePlayerItemStatusChange(item)
+            }
+        }
+    }
+
+    /// Handles player item status changes - performs pending seek when ready
+    private func handlePlayerItemStatusChange(_ item: AVPlayerItem) {
+        switch item.status {
+        case .readyToPlay:
+            // Perform pending seek now that player is ready
+            if let seekTime = pendingSeekTime {
+                print("✅ Player ready, seeking to \(seekTime) seconds")
+                seek(to: seekTime)
+                pendingSeekTime = nil
+            }
+
+            // Cache duration if we got it from AVPlayer
+            if let episode = currentEpisode {
+                let itemDuration = item.duration.seconds
+                if !itemDuration.isNaN && !itemDuration.isInfinite && itemDuration > 0 {
+                    metadataCache.cacheDuration(episodeId: episode.id, duration: itemDuration)
+                }
+            }
+
+        case .failed:
+            print("❌ Player item failed: \(item.error?.localizedDescription ?? "Unknown error")")
+
+        case .unknown:
+            break
+
+        @unknown default:
+            break
+        }
     }
 
     func pause() {
@@ -172,9 +241,16 @@ class AudioPlayer {
         }
 
         player?.pause()
+
+        // Clean up time observer
         if let timeObserver = timeObserver {
             player?.removeTimeObserver(timeObserver)
         }
+
+        // Clean up status observer
+        statusObservation?.invalidate()
+        statusObservation = nil
+
         player = nil
         isPlaying = false
         currentTime = 0
@@ -182,6 +258,7 @@ class AudioPlayer {
         currentEpisode = nil
         currentPodcast = nil
         cachedArtwork = nil
+        pendingSeekTime = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
