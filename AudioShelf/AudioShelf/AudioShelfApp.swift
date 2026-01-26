@@ -8,6 +8,7 @@
 import SwiftUI
 import AVFoundation
 import UIKit
+import Combine
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
@@ -133,16 +134,99 @@ struct FloatingPlayerView: View {
     }
 }
 
+// MARK: - Time Display View (Isolates frequent time updates)
+
+struct TimeDisplayView: View {
+    let audioPlayer: AudioPlayer
+    let showRemaining: Bool
+    let alignment: Alignment
+
+    @State private var displayTime: Double = 0
+    @State private var cancellable: AnyCancellable?
+
+    var body: some View {
+        Text(formatTime(showRemaining ? audioPlayer.duration - displayTime : displayTime))
+            .font(.caption2)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .lineLimit(1)
+            .fixedSize()
+            .onAppear {
+                displayTime = audioPlayer.currentTime
+                cancellable = audioPlayer.timeUpdatePublisher
+                    .receive(on: DispatchQueue.main)
+                    .sink { time in
+                        displayTime = time
+                    }
+            }
+            .onDisappear {
+                cancellable?.cancel()
+            }
+    }
+
+    private func formatTime(_ seconds: Double) -> String {
+        guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
+        let totalSeconds = Int(max(0, seconds))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let secs = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        } else {
+            return String(format: "%d:%02d", minutes, secs)
+        }
+    }
+}
+
+// MARK: - Player Slider View (Isolates slider updates)
+
+struct PlayerSliderView: View {
+    let audioPlayer: AudioPlayer
+
+    @State private var currentTime: Double = 0
+    @State private var isDragging = false
+    @State private var dragValue: Double = 0
+    @State private var cancellable: AnyCancellable?
+
+    var body: some View {
+        Slider(
+            value: isDragging ? $dragValue : $currentTime,
+            in: 0...max(audioPlayer.duration, 1)
+        ) { isEditing in
+            isDragging = isEditing
+            if !isEditing {
+                audioPlayer.seek(to: dragValue)
+            } else {
+                dragValue = currentTime
+            }
+        }
+        .tint(.blue)
+        .onAppear {
+            currentTime = audioPlayer.currentTime
+            cancellable = audioPlayer.timeUpdatePublisher
+                .receive(on: DispatchQueue.main)
+                .sink { time in
+                    if !isDragging {
+                        currentTime = time
+                    }
+                }
+        }
+        .onDisappear {
+            cancellable?.cancel()
+        }
+    }
+}
+
 // MARK: - Mini Player View
 
 struct MiniPlayerView: View {
     @Bindable var audioPlayer: AudioPlayer
     @Binding var isExpanded: Bool
     @Binding var dragOffset: CGFloat
-    @State private var isDragging = false
-    @State private var dragValue: Double = 0
     @State private var showBookmarkDialog = false
     @State private var bookmarkNote = ""
+    @State private var bookmarkTime: Double = 0
     private let bookmarkService = BookmarkService.shared
 
     var body: some View {
@@ -196,36 +280,12 @@ struct MiniPlayerView: View {
 
                 // Progress bar (draggable slider) with time labels
                 HStack(spacing: 8) {
-                    Text(formatTime(isDragging ? dragValue : audioPlayer.currentTime))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .fixedSize()
+                    TimeDisplayView(audioPlayer: audioPlayer, showRemaining: false, alignment: .trailing)
                         .frame(width: 50, alignment: .trailing)
 
-                    Slider(
-                        value: isDragging ? $dragValue : Binding(
-                            get: { audioPlayer.currentTime },
-                            set: { _ in }
-                        ),
-                        in: 0...max(audioPlayer.duration, 1)
-                    ) { isEditing in
-                        isDragging = isEditing
-                        if !isEditing {
-                            audioPlayer.seek(to: dragValue)
-                        } else {
-                            dragValue = audioPlayer.currentTime
-                        }
-                    }
-                    .tint(.blue)
+                    PlayerSliderView(audioPlayer: audioPlayer)
 
-                    Text(formatTime(audioPlayer.duration - (isDragging ? dragValue : audioPlayer.currentTime)))
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .fixedSize()
+                    TimeDisplayView(audioPlayer: audioPlayer, showRemaining: true, alignment: .leading)
                         .frame(width: 50, alignment: .leading)
                 }
 
@@ -324,20 +384,68 @@ struct MiniPlayerView: View {
                     let note = bookmarkNote.isEmpty ? nil : bookmarkNote
                     bookmarkService.addBookmark(
                         episodeId: episode.id,
-                        timestamp: audioPlayer.currentTime,
+                        timestamp: bookmarkTime,
                         note: note
                     )
                     bookmarkNote = ""
                 }
             }
         } message: {
-            Text("Save bookmark at \(formatTime(audioPlayer.currentTime))")
+            Text("Save bookmark at \(formatTimeStatic(bookmarkTime))")
         }
+        .onChange(of: showBookmarkDialog) { _, isShowing in
+            if isShowing {
+                bookmarkTime = audioPlayer.currentTime
+            }
+        }
+    }
+}
+
+// Helper function for formatting time (used in alerts where we can't use a View)
+private func formatTimeStatic(_ seconds: Double) -> String {
+    guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
+    let totalSeconds = Int(max(0, seconds))
+    let hours = totalSeconds / 3600
+    let minutes = (totalSeconds % 3600) / 60
+    let secs = totalSeconds % 60
+
+    if hours > 0 {
+        return String(format: "%d:%02d:%02d", hours, minutes, secs)
+    } else {
+        return String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+// MARK: - Expanded Time Display View (larger font for expanded player)
+
+struct ExpandedTimeDisplayView: View {
+    let audioPlayer: AudioPlayer
+    let showRemaining: Bool
+
+    @State private var displayTime: Double = 0
+    @State private var cancellable: AnyCancellable?
+
+    var body: some View {
+        Text(formatTime(showRemaining ? audioPlayer.duration - displayTime : displayTime))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .monospacedDigit()
+            .onAppear {
+                displayTime = audioPlayer.currentTime
+                cancellable = audioPlayer.timeUpdatePublisher
+                    .receive(on: DispatchQueue.main)
+                    .sink { time in
+                        displayTime = time
+                    }
+            }
+            .onDisappear {
+                cancellable?.cancel()
+            }
     }
 
     private func formatTime(_ seconds: Double) -> String {
         guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
-        let totalSeconds = Int(seconds)
+        let totalSeconds = Int(max(0, seconds))
         let hours = totalSeconds / 3600
         let minutes = (totalSeconds % 3600) / 60
         let secs = totalSeconds % 60
@@ -356,11 +464,10 @@ struct ExpandedPlayerView: View {
     @Bindable var audioPlayer: AudioPlayer
     @Binding var isExpanded: Bool
     @Binding var dragOffset: CGFloat
-    @State private var isDragging = false
-    @State private var dragValue: Double = 0
     @State private var coverImage: UIImage?
     @State private var showBookmarkDialog = false
     @State private var bookmarkNote = ""
+    @State private var bookmarkTime: Double = 0
     @State private var selectedTab = 0
     @Environment(\.colorScheme) private var colorScheme
     private let bookmarkService = BookmarkService.shared
@@ -447,34 +554,12 @@ struct ExpandedPlayerView: View {
 
                     // Progress slider with time labels
                     VStack(spacing: 8) {
-                        Slider(
-                            value: isDragging ? $dragValue : Binding(
-                                get: { audioPlayer.currentTime },
-                                set: { _ in }
-                            ),
-                            in: 0...max(audioPlayer.duration, 1)
-                        ) { isEditing in
-                            isDragging = isEditing
-                            if !isEditing {
-                                audioPlayer.seek(to: dragValue)
-                            } else {
-                                dragValue = audioPlayer.currentTime
-                            }
-                        }
-                        .tint(.blue)
+                        PlayerSliderView(audioPlayer: audioPlayer)
 
                         HStack {
-                            Text(formatTime(isDragging ? dragValue : audioPlayer.currentTime))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-
+                            ExpandedTimeDisplayView(audioPlayer: audioPlayer, showRemaining: false)
                             Spacer()
-
-                            Text(formatTime(audioPlayer.duration - (isDragging ? dragValue : audioPlayer.currentTime)))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
+                            ExpandedTimeDisplayView(audioPlayer: audioPlayer, showRemaining: true)
                         }
                     }
                     .padding(.horizontal, 32)
@@ -631,28 +716,19 @@ struct ExpandedPlayerView: View {
                     let note = bookmarkNote.isEmpty ? nil : bookmarkNote
                     bookmarkService.addBookmark(
                         episodeId: episode.id,
-                        timestamp: audioPlayer.currentTime,
+                        timestamp: bookmarkTime,
                         note: note
                     )
                     bookmarkNote = ""
                 }
             }
         } message: {
-            Text("Save bookmark at \(formatTime(audioPlayer.currentTime))")
+            Text("Save bookmark at \(formatTimeStatic(bookmarkTime))")
         }
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-        guard !seconds.isNaN && !seconds.isInfinite else { return "0:00" }
-        let totalSeconds = Int(seconds)
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let secs = totalSeconds % 60
-
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        } else {
-            return String(format: "%d:%02d", minutes, secs)
+        .onChange(of: showBookmarkDialog) { _, isShowing in
+            if isShowing {
+                bookmarkTime = audioPlayer.currentTime
+            }
         }
     }
 

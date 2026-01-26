@@ -26,9 +26,24 @@ class AudioPlayer {
     private var statusObservation: NSKeyValueObservation?
     private var pendingSeekTime: Double?
 
+    // Timing diagnostics for playback startup
+    private var playbackStartTime: Date?
+    private var playerItemCreatedTime: Date?
+    private var firstPlaybackTime: Date?
+    private var hasLoggedFirstPlayback = false
+    private var bufferEmptyObservation: NSKeyValueObservation?
+    private var playbackLikelyObservation: NSKeyValueObservation?
+
     var isPlaying = false
     var isBuffering = false  // Kept for compatibility but not actively used
-    var currentTime: Double = 0
+
+    // Mark currentTime as ObservationIgnored to prevent excessive view updates (updates every 0.5s)
+    // Views that need real-time updates should use the timeUpdatePublisher instead
+    @ObservationIgnored var currentTime: Double = 0
+
+    // Publisher for time updates - views can subscribe to this for real-time time display
+    @ObservationIgnored let timeUpdatePublisher = PassthroughSubject<Double, Never>()
+
     var duration: Double = 0
     var currentEpisode: Episode?
     var currentPodcast: Podcast?
@@ -80,6 +95,15 @@ class AudioPlayer {
         // If playing a different episode, create new player
         if currentEpisode?.id != episode.id {
             stop()
+
+            // Start timing diagnostics
+            playbackStartTime = Date()
+            hasLoggedFirstPlayback = false
+            print("⏱️ [TIMING] ========== PLAYBACK START ==========")
+            print("⏱️ [TIMING] Episode: \(episode.displayTitle)")
+            print("⏱️ [TIMING] URL: \(audioURL.absoluteString.prefix(100))...")
+            print("⏱️ [TIMING] T+0.000s: play() called")
+
             currentEpisode = episode
             currentPodcast = podcast
             cachedArtwork = nil  // Clear cached artwork for new episode
@@ -111,21 +135,38 @@ class AudioPlayer {
             }
 
             // Create player item with optimized buffering
+            logTiming("Creating AVPlayerItem")
             let playerItem = createOptimizedPlayerItem(url: audioURL)
+            playerItemCreatedTime = Date()
+            logTiming("AVPlayerItem created")
+
             player = AVPlayer(playerItem: playerItem)
+            logTiming("AVPlayer initialized")
 
             // Configure player for fast startup
             player?.automaticallyWaitsToMinimizeStalling = false
 
             // Set up status observer for readiness-based seeking
             setupStatusObserver(for: playerItem)
+            setupBufferObservers(for: playerItem)
             observeDuration()
 
             // Observe time updates
             let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
             timeObserver = player?.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
                 guard let self = self else { return }
+                let previousTime = self.currentTime
                 self.currentTime = time.seconds
+
+                // Publish time update for views that need real-time updates
+                self.timeUpdatePublisher.send(self.currentTime)
+
+                // Detect first actual playback (time started moving)
+                if self.firstPlaybackTime == nil && self.currentTime > 0.1 && previousTime < 0.1 {
+                    self.firstPlaybackTime = Date()
+                    self.logTiming("🎵 FIRST AUDIO PLAYBACK DETECTED")
+                }
+
                 self.updateNowPlayingInfo()
 
                 // Auto-save every 10 seconds
@@ -146,10 +187,72 @@ class AudioPlayer {
             }
         }
 
+        logTiming("Calling player.play()")
         player?.play()
         player?.rate = playbackSpeed
         isPlaying = true
         updateNowPlayingInfo()
+        logTiming("play() method complete, waiting for buffering...")
+    }
+
+    // MARK: - Timing Diagnostics
+
+    private func logTiming(_ event: String) {
+        guard let startTime = playbackStartTime else { return }
+        let elapsed = Date().timeIntervalSince(startTime)
+        print(String(format: "⏱️ [TIMING] T+%.3fs: %@", elapsed, event))
+    }
+
+    private func setupBufferObservers(for playerItem: AVPlayerItem) {
+        // Clean up previous observers
+        bufferEmptyObservation?.invalidate()
+        playbackLikelyObservation?.invalidate()
+
+        // Observe buffer empty state
+        bufferEmptyObservation = playerItem.observe(\.isPlaybackBufferEmpty, options: [.new, .old]) { [weak self] item, change in
+            DispatchQueue.main.async {
+                if let isEmpty = change.newValue {
+                    self?.logTiming("Buffer empty: \(isEmpty)")
+                }
+            }
+        }
+
+        // Observe playback likely to keep up
+        playbackLikelyObservation = playerItem.observe(\.isPlaybackLikelyToKeepUp, options: [.new, .old]) { [weak self] item, change in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let isLikely = change.newValue, isLikely {
+                    self.logTiming("Playback likely to keep up: YES")
+                    if !self.hasLoggedFirstPlayback {
+                        self.hasLoggedFirstPlayback = true
+                        self.logTiming("✅ READY FOR SMOOTH PLAYBACK")
+                        self.printTimingSummary()
+                    }
+                }
+            }
+        }
+    }
+
+    private func printTimingSummary() {
+        guard let startTime = playbackStartTime else { return }
+        let totalTime = Date().timeIntervalSince(startTime)
+
+        print("⏱️ [TIMING] ========== SUMMARY ==========")
+        print(String(format: "⏱️ [TIMING] Total startup time: %.3fs", totalTime))
+
+        if let itemCreated = playerItemCreatedTime {
+            let itemCreateTime = itemCreated.timeIntervalSince(startTime)
+            print(String(format: "⏱️ [TIMING]   - PlayerItem creation: %.3fs", itemCreateTime))
+        }
+
+        if totalTime > 2.0 {
+            print("⏱️ [TIMING] ⚠️ SLOW STARTUP DETECTED (>2s)")
+        } else if totalTime > 1.0 {
+            print("⏱️ [TIMING] ⚡ Moderate startup (1-2s)")
+        } else {
+            print("⏱️ [TIMING] 🚀 Fast startup (<1s)")
+        }
+        print("⏱️ [TIMING] ==============================")
     }
 
     /// Creates an AVPlayerItem with optimized buffering configuration
@@ -159,8 +262,8 @@ class AudioPlayer {
         let playerItem = AVPlayerItem(url: url)
 
         // Configure buffering for fast startup
-        // 10 seconds of forward buffer is enough to start quickly while still having smooth playback
-        playerItem.preferredForwardBufferDuration = 10
+        // 2 seconds is minimal buffer - start playback ASAP, buffer more while playing
+        playerItem.preferredForwardBufferDuration = 2
 
         return playerItem
     }
@@ -182,11 +285,21 @@ class AudioPlayer {
     private func handlePlayerItemStatusChange(_ item: AVPlayerItem) {
         switch item.status {
         case .readyToPlay:
+            logTiming("AVPlayerItem status: readyToPlay")
+
+            // Log buffer state
+            let loadedRanges = item.loadedTimeRanges
+            if let firstRange = loadedRanges.first?.timeRangeValue {
+                let bufferedSeconds = CMTimeGetSeconds(firstRange.duration)
+                logTiming(String(format: "Buffered: %.1fs", bufferedSeconds))
+            }
+
             // Perform pending seek now that player is ready
             if let seekTime = pendingSeekTime {
-                print("✅ Player ready, seeking to \(seekTime) seconds")
+                logTiming("Starting seek to \(seekTime) seconds")
                 seek(to: seekTime)
                 pendingSeekTime = nil
+                logTiming("Seek command sent")
             }
 
             // Cache duration if we got it from AVPlayer
@@ -194,10 +307,12 @@ class AudioPlayer {
                 let itemDuration = item.duration.seconds
                 if !itemDuration.isNaN && !itemDuration.isInfinite && itemDuration > 0 {
                     metadataCache.cacheDuration(episodeId: episode.id, duration: itemDuration)
+                    logTiming("Duration from AVPlayer: \(itemDuration)s")
                 }
             }
 
         case .failed:
+            logTiming("❌ AVPlayerItem FAILED")
             print("❌ Player item failed: \(item.error?.localizedDescription ?? "Unknown error")")
 
         case .unknown:
@@ -250,6 +365,18 @@ class AudioPlayer {
         // Clean up status observer
         statusObservation?.invalidate()
         statusObservation = nil
+
+        // Clean up buffer observers
+        bufferEmptyObservation?.invalidate()
+        bufferEmptyObservation = nil
+        playbackLikelyObservation?.invalidate()
+        playbackLikelyObservation = nil
+
+        // Reset timing diagnostics
+        playbackStartTime = nil
+        playerItemCreatedTime = nil
+        firstPlaybackTime = nil
+        hasLoggedFirstPlayback = false
 
         player = nil
         isPlaying = false

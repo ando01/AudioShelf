@@ -81,7 +81,8 @@ struct EpisodeDetailView: View {
                     EpisodeRow(
                         episode: episode,
                         isExpanded: expandedEpisodeId == episode.id,
-                        isPlaying: viewModel.audioPlayer.currentEpisode?.id == episode.id && viewModel.audioPlayer.isPlaying,
+                        currentPlayingEpisodeId: viewModel.audioPlayer.currentEpisode?.id,
+                        isAudioPlaying: viewModel.audioPlayer.isPlaying,
                         viewModel: viewModel
                     ) {
                         withAnimation {
@@ -173,7 +174,8 @@ struct EpisodeDetailView: View {
 struct EpisodeRow: View {
     let episode: Episode
     let isExpanded: Bool
-    let isPlaying: Bool
+    let currentPlayingEpisodeId: String?
+    let isAudioPlaying: Bool
     let viewModel: EpisodeDetailViewModel
     let onTap: () -> Void
     let onPlay: () -> Void
@@ -181,6 +183,11 @@ struct EpisodeRow: View {
     @Environment(\.colorScheme) private var colorScheme
     @State private var bookmarks: [Bookmark] = []
     private let bookmarkService = BookmarkService.shared
+
+    // Computed property to check if this specific episode is playing
+    private var isPlaying: Bool {
+        currentPlayingEpisodeId == episode.id && isAudioPlaying
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
