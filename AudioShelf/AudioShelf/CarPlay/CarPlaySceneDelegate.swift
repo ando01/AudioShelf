@@ -12,8 +12,16 @@ import UIKit
 class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
 
     private var interfaceController: CPInterfaceController?
-    private var podcasts: [Podcast] = []
+    private var allPodcasts: [Podcast] = []  // All podcasts (unfiltered)
+    private var filteredPodcasts: [Podcast] = []  // Currently displayed podcasts
     private var artworkCache: [String: UIImage] = [:]
+
+    // Genre filtering
+    private var selectedGenre: String? = nil  // nil means "All Genres"
+    private var availableGenres: [String] {
+        let genres = Set(allPodcasts.flatMap { $0.media.metadata.genres ?? [] })
+        return genres.sorted()
+    }
 
     // MARK: - CPTemplateApplicationSceneDelegate
 
@@ -37,8 +45,10 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
     ) {
         print("CarPlay: Did disconnect")
         self.interfaceController = nil
-        self.podcasts = []
+        self.allPodcasts = []
+        self.filteredPodcasts = []
         self.artworkCache = [:]
+        self.selectedGenre = nil
     }
 
     // MARK: - Template Setup
@@ -96,14 +106,77 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
                 print("CarPlay: Found \(podcasts.count) podcasts")
 
                 await MainActor.run {
-                    self.podcasts = podcasts
-                    self.updatePodcastList(with: podcasts, message: nil)
+                    self.allPodcasts = podcasts
+                    self.applyGenreFilter()
                 }
             } catch {
                 print("CarPlay: Error loading data - \(error.localizedDescription)")
                 await MainActor.run {
                     self.updatePodcastList(with: [], message: "Failed to load podcasts")
                 }
+            }
+        }
+    }
+
+    // MARK: - Genre Filtering
+
+    private func applyGenreFilter() {
+        if let genre = selectedGenre {
+            filteredPodcasts = allPodcasts.filter { podcast in
+                podcast.media.metadata.genres?.contains(genre) ?? false
+            }
+        } else {
+            filteredPodcasts = allPodcasts
+        }
+        updatePodcastList(with: filteredPodcasts, message: nil)
+    }
+
+    private func showGenreFilter() {
+        print("CarPlay: Showing genre filter with \(availableGenres.count) genres")
+
+        var items: [CPListItem] = []
+
+        // Add "All Genres" option
+        let allGenresItem = CPListItem(
+            text: "All Genres",
+            detailText: selectedGenre == nil ? "Currently selected" : "\(allPodcasts.count) podcasts"
+        )
+        if selectedGenre == nil {
+            allGenresItem.accessoryType = .cloud  // Use as checkmark indicator
+        }
+        allGenresItem.handler = { [weak self] _, completion in
+            self?.selectedGenre = nil
+            self?.applyGenreFilter()
+            self?.interfaceController?.popTemplate(animated: true, completion: nil)
+            completion()
+        }
+        items.append(allGenresItem)
+
+        // Add individual genres
+        for genre in availableGenres {
+            let podcastCount = allPodcasts.filter { $0.media.metadata.genres?.contains(genre) ?? false }.count
+            let item = CPListItem(
+                text: genre,
+                detailText: selectedGenre == genre ? "Currently selected" : "\(podcastCount) podcasts"
+            )
+            if selectedGenre == genre {
+                item.accessoryType = .cloud  // Use as checkmark indicator
+            }
+            item.handler = { [weak self] _, completion in
+                self?.selectedGenre = genre
+                self?.applyGenreFilter()
+                self?.interfaceController?.popTemplate(animated: true, completion: nil)
+                completion()
+            }
+            items.append(item)
+        }
+
+        let section = CPListSection(items: items)
+        let genreTemplate = CPListTemplate(title: "Filter by Genre", sections: [section])
+
+        interfaceController?.pushTemplate(genreTemplate, animated: true) { success, error in
+            if let error = error {
+                print("CarPlay: Failed to push genre filter - \(error.localizedDescription)")
             }
         }
     }
@@ -117,12 +190,23 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
             return
         }
 
+        // Add genre filter button (shows ● when filter is active)
+        let filterTitle = selectedGenre != nil ? "Filter ●" : "Filter"
+        let filterButton = CPBarButton(title: filterTitle) { [weak self] _ in
+            self?.showGenreFilter()
+        }
+        podcastsTemplate.trailingNavigationBarButtons = [filterButton]
+
         var items: [CPListItem] = []
 
         if let message = message {
             let messageItem = CPListItem(text: message, detailText: nil)
             messageItem.isEnabled = false
             items.append(messageItem)
+        } else if podcasts.isEmpty {
+            let emptyItem = CPListItem(text: "No podcasts found", detailText: selectedGenre != nil ? "Try a different genre" : nil)
+            emptyItem.isEnabled = false
+            items.append(emptyItem)
         } else {
             for podcast in podcasts {
                 let item = CPListItem(text: podcast.title, detailText: podcast.author)
