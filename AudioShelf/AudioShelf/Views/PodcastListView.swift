@@ -153,13 +153,6 @@ struct PodcastListView: View {
                                 }
                             }
                         }
-
-                        Divider()
-
-                        Button("Logout", role: .destructive) {
-                            viewModel.logout()
-                            isLoggedIn = false
-                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }

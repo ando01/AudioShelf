@@ -13,6 +13,7 @@ struct TVEpisodeListView: View {
     var audioPlayer: AudioPlayer
     @State private var viewModel: EpisodeDetailViewModel
     @State private var showVideoPlayer = false
+    @State private var showAudioPlayer = false
     @State private var selectedVideoEpisode: Episode?
 
     init(podcast: Podcast, audioPlayer: AudioPlayer) {
@@ -50,8 +51,9 @@ struct TVEpisodeListView: View {
                             selectedVideoEpisode = episode
                             showVideoPlayer = true
                         } else {
-                            // Play episode and navigate to now playing
+                            // Play episode and present audio player controls
                             viewModel.playEpisode(episode)
+                            showAudioPlayer = true
                         }
                     } label: {
                         TVEpisodeRowView(
@@ -73,6 +75,9 @@ struct TVEpisodeListView: View {
         .fullScreenCover(isPresented: $showVideoPlayer) {
             TVVideoPlayerView(player: audioPlayer.avPlayer)
                 .ignoresSafeArea()
+        }
+        .fullScreenCover(isPresented: $showAudioPlayer) {
+            TVNowPlayingView(audioPlayer: audioPlayer)
         }
     }
 }

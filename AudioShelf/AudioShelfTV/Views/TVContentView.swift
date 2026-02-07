@@ -14,6 +14,7 @@ struct TVContentView: View {
     @State private var navigationPath = NavigationPath()
     @State private var showSignOutAlert = false
     @State private var showSortOptions = false
+    @State private var showNowPlaying = false
 
     private let columns = [
         GridItem(.adaptive(minimum: 250, maximum: 350), spacing: 40)
@@ -23,10 +24,14 @@ struct TVContentView: View {
         NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(spacing: 24) {
-                    // Now Playing banner
+                    // Now Playing banner - tap to open full controls
                     if let episode = audioPlayer.currentEpisode {
-                        NowPlayingBanner(audioPlayer: audioPlayer, episode: episode)
-                            .focusable()
+                        Button {
+                            showNowPlaying = true
+                        } label: {
+                            NowPlayingBanner(audioPlayer: audioPlayer, episode: episode)
+                        }
+                        .buttonStyle(.card)
                     }
 
                     // Genre filter
@@ -120,6 +125,9 @@ struct TVContentView: View {
                 Button("Cancel", role: .cancel) { }
             } message: {
                 Text("Are you sure you want to sign out?")
+            }
+            .fullScreenCover(isPresented: $showNowPlaying) {
+                TVNowPlayingView(audioPlayer: audioPlayer)
             }
             .navigationDestination(for: String.self) { podcastId in
                 if let podcast = viewModel.podcasts.first(where: { $0.id == podcastId }) {

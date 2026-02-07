@@ -515,6 +515,241 @@ class AudioBookshelfAPI {
         } ?? []
     }
 
+    // MARK: - Podcast Search
+
+    /// Search iTunes for podcasts
+    /// API: GET /api/search/podcast?term=<query>
+    func searchPodcasts(term: String) async throws -> [PodcastSearchResult] {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        var components = URLComponents(string: "\(serverURL)/api/search/podcast")
+        components?.queryItems = [URLQueryItem(name: "term", value: term)]
+
+        guard let url = components?.url else {
+            throw APIError.invalidURL
+        }
+
+        print("🔍 [API] GET \(url)")
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            print("🔍 [API] ❌ Search failed with status: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+            throw APIError.invalidResponse
+        }
+
+        // Log the raw response for debugging
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🔍 [API] Search response (first 1000 chars): \(responseString.prefix(1000))")
+        }
+
+        // The API returns a direct array [...] of podcast results
+        struct APISearchResult: Codable {
+            let id: Int
+            let artistId: Int?
+            let title: String
+            let artistName: String
+            let description: String?
+            let cover: String?
+            let feedUrl: String
+            let trackCount: Int
+            let genres: [String]
+            let explicit: Bool
+        }
+
+        do {
+            let decoded = try JSONDecoder().decode([APISearchResult].self, from: data)
+            print("🔍 [API] ✅ Decoded \(decoded.count) search results")
+
+            // Map to our model
+            return decoded.map { result in
+                PodcastSearchResult(
+                    id: result.id,
+                    artistId: result.artistId,
+                    title: result.title,
+                    artistName: result.artistName,
+                    description: result.description,
+                    cover: result.cover,
+                    feedUrl: result.feedUrl,
+                    trackCount: result.trackCount,
+                    genres: result.genres,
+                    explicit: result.explicit
+                )
+            }
+        } catch {
+            print("🔍 [API] ❌ Failed to decode search response: \(error)")
+            throw error
+        }
+    }
+
+    /// Get folders for a library (needed to add podcasts)
+    /// Folders are part of the library object, so we fetch the library and extract folders
+    /// API: GET /api/libraries/:id
+    func getLibraryFolders(libraryId: String) async throws -> [LibraryFolder] {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        guard let url = URL(string: "\(serverURL)/api/libraries/\(libraryId)") else {
+            throw APIError.invalidURL
+        }
+
+        print("📁 [API] GET \(url) (for folders)")
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            print("📁 [API] ❌ Failed to get library (status: \((response as? HTTPURLResponse)?.statusCode ?? -1))")
+            throw APIError.invalidResponse
+        }
+
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("📁 [API] Library response (first 500 chars): \(responseString.prefix(500))")
+        }
+
+        // The library object contains folders array
+        struct LibraryResponse: Codable {
+            let id: String
+            let folders: [FolderInfo]
+
+            struct FolderInfo: Codable {
+                let id: String
+                let fullPath: String
+            }
+        }
+
+        do {
+            let decoded = try JSONDecoder().decode(LibraryResponse.self, from: data)
+            print("📁 [API] ✅ Loaded \(decoded.folders.count) folders")
+
+            return decoded.folders.map { folder in
+                LibraryFolder(id: folder.id, fullPath: folder.fullPath)
+            }
+        } catch {
+            print("📁 [API] ❌ Failed to decode library response: \(error)")
+            throw error
+        }
+    }
+
+    /// Add a podcast to the library
+    /// API: POST /api/podcasts
+    func addPodcast(libraryId: String, folderId: String, podcastResult: PodcastSearchResult) async throws {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        guard let url = URL(string: "\(serverURL)/api/podcasts") else {
+            throw APIError.invalidURL
+        }
+
+        print("🌐 [API] POST \(url)")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
+
+        // Build request body matching AudioBookshelf API
+        // API expects: libraryId, folderId, path, media.metadata, autoDownloadEpisodes
+        struct AddPodcastRequest: Encodable {
+            let libraryId: String
+            let folderId: String
+            let path: String
+            let media: PodcastMedia
+            let autoDownloadEpisodes: Bool
+            let autoDownloadSchedule: String  // Cron expression
+
+            struct PodcastMedia: Encodable {
+                let metadata: PodcastMetadata
+                let autoDownloadEpisodes: Bool
+            }
+
+            struct PodcastMetadata: Encodable {
+                let title: String
+                let author: String?
+                let description: String?
+                let feedUrl: String
+                let imageUrl: String?
+                let itunesId: Int?
+                let language: String?
+                let explicit: Bool
+                let type: String
+            }
+        }
+
+        // Create a safe folder name from the podcast title
+        let safeFolderName = podcastResult.title
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: "\\", with: "-")
+            .replacingOccurrences(of: "\"", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let body = AddPodcastRequest(
+            libraryId: libraryId,
+            folderId: folderId,
+            path: safeFolderName,
+            media: AddPodcastRequest.PodcastMedia(
+                metadata: AddPodcastRequest.PodcastMetadata(
+                    title: podcastResult.title,
+                    author: podcastResult.artistName,
+                    description: podcastResult.description,
+                    feedUrl: podcastResult.feedUrl,
+                    imageUrl: podcastResult.cover,
+                    itunesId: podcastResult.id,
+                    language: nil,
+                    explicit: podcastResult.explicit,
+                    type: "episodic"
+                ),
+                autoDownloadEpisodes: true
+            ),
+            autoDownloadEpisodes: true,
+            autoDownloadSchedule: "0 * * * *"  // Check every hour
+        )
+
+        let bodyData = try JSONEncoder().encode(body)
+        request.httpBody = bodyData
+
+        if let bodyString = String(data: bodyData, encoding: .utf8) {
+            print("🌐 [API] Request body: \(bodyString)")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("🌐 [API] ❌ Invalid response type")
+            throw APIError.invalidResponse
+        }
+
+        print("🌐 [API] Response status: \(httpResponse.statusCode)")
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🌐 [API] Response body: \(responseString.prefix(500))")
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            if let errorString = String(data: data, encoding: .utf8) {
+                print("🌐 [API] ❌ Error: \(errorString)")
+                throw APIError.serverError(errorString)
+            }
+            throw APIError.invalidResponse
+        }
+
+        print("🌐 [API] ✅ Podcast added successfully")
+    }
+
     // MARK: - Cover Images
 
     func getCoverImageURL(for podcast: Podcast) -> URL? {

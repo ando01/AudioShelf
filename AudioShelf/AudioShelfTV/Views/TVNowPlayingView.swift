@@ -9,37 +9,47 @@ import SwiftUI
 
 struct TVNowPlayingView: View {
     var audioPlayer: AudioPlayer
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        GeometryReader { geometry in
-            HStack(spacing: 48) {
-                // Left side - artwork
-                coverArtView
-                    .frame(width: geometry.size.width * 0.4)
+        NavigationStack {
+            GeometryReader { geometry in
+                HStack(spacing: 48) {
+                    // Left side - artwork
+                    coverArtView
+                        .frame(width: geometry.size.width * 0.4)
 
-                // Right side - info and controls
-                VStack(spacing: 32) {
-                    Spacer()
+                    // Right side - info and controls
+                    VStack(spacing: 32) {
+                        Spacer()
 
-                    // Episode info
-                    episodeInfoView
+                        // Episode info
+                        episodeInfoView
 
-                    // Progress
-                    progressView
+                        // Progress
+                        progressView
 
-                    // Transport controls
-                    transportControls
+                        // Transport controls
+                        transportControls
 
-                    // Speed control
-                    speedControl
+                        // Speed control
+                        speedControl
 
-                    Spacer()
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
+                .padding(60)
             }
-            .padding(60)
+            .navigationTitle("Now Playing")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
         }
-        .navigationTitle("Now Playing")
     }
 
     // MARK: - Cover Art

@@ -9,12 +9,21 @@ A native iOS and tvOS client for [Audiobookshelf](https://www.audiobookshelf.org
 - **tvOS app** optimized for Apple TV with focus-based navigation
 - **Server-side progress sync** - start listening on one device, continue on another
 
+### Navigation
+- **Tab-based interface** with Home, Library, Search, and Settings tabs
+- **Home tab** with carousel of recently updated podcasts (cover art only)
+- **Library tab** for full podcast list with search, filter, and sort
+- **Search tab** to find and add podcasts from iTunes
+- **Settings tab** for logout and app info
+
 ### Library Management
 - Browse podcasts from your Audiobookshelf library
 - View episodes sorted by publish date (newest first)
 - Filter podcasts by genre
 - Sort podcasts by latest episode, title, or genre
 - Cover art loading with caching
+- **Add podcasts** by searching iTunes directly from the app
+- Auto-download enabled for newly added podcasts
 
 ### Playback
 - Stream audio and video podcasts
@@ -47,7 +56,7 @@ A native iOS and tvOS client for [Audiobookshelf](https://www.audiobookshelf.org
 
 | Service | Purpose |
 |---------|---------|
-| `AudioBookshelfAPI` | Handles all server communication (login, libraries, podcasts, episodes, progress) |
+| `AudioBookshelfAPI` | Handles all server communication (login, libraries, podcasts, episodes, progress, search, add podcast) |
 | `AudioPlayer` | AVPlayer-based audio/video playback with Now Playing integration |
 | `ProgressSyncService` | Orchestrates progress sync between local storage and server |
 | `PlaybackProgressService` | Local progress storage in UserDefaults |
@@ -72,12 +81,15 @@ AudioPlayer → ProgressSyncService → AudioBookshelfAPI (server)
 |----------|--------|---------|
 | `/login` | POST | Authentication |
 | `/api/libraries` | GET | Fetch libraries |
+| `/api/libraries/{id}` | GET | Fetch library details (including folders) |
 | `/api/libraries/{id}/items` | GET | Fetch podcasts |
 | `/api/items/{id}` | GET | Fetch podcast with episodes |
 | `/api/items/{id}/cover` | GET | Fetch cover image |
 | `/api/me/progress/{libraryItemId}/{episodeId}` | GET | Fetch episode progress |
 | `/api/me/progress/{libraryItemId}/{episodeId}` | PATCH | Update episode progress |
 | `/api/me/items-in-progress` | GET | Fetch all in-progress items |
+| `/api/search/podcast` | GET | Search iTunes for podcasts |
+| `/api/podcasts` | POST | Add podcast to library |
 
 ## Requirements
 
@@ -97,11 +109,13 @@ AudioPlayer → ProgressSyncService → AudioBookshelfAPI (server)
 ```
 AudioShelf/
 ├── AudioShelf/                 # iOS app
-│   ├── AudioShelfApp.swift     # App entry point
+│   ├── AudioShelfApp.swift     # App entry point with FloatingPlayerView
 │   ├── Models/                 # Data models
 │   │   ├── Podcast.swift
 │   │   ├── Episode.swift
 │   │   ├── Library.swift
+│   │   ├── LibraryFolder.swift
+│   │   ├── PodcastSearchResult.swift
 │   │   ├── User.swift
 │   │   └── PlaybackProgress.swift
 │   ├── Services/               # Business logic
@@ -112,8 +126,17 @@ AudioShelf/
 │   │   └── OfflineDataCache.swift
 │   ├── ViewModels/             # View models
 │   │   ├── PodcastListViewModel.swift
-│   │   └── EpisodeDetailViewModel.swift
+│   │   ├── EpisodeDetailViewModel.swift
+│   │   ├── HomeViewModel.swift
+│   │   └── PodcastSearchViewModel.swift
 │   ├── Views/                  # SwiftUI views
+│   │   ├── MainTabView.swift       # Tab bar container
+│   │   ├── HomeView.swift          # Home tab with carousel
+│   │   ├── PodcastCarousel.swift   # Horizontal podcast carousel
+│   │   ├── PodcastListView.swift   # Library tab
+│   │   ├── PodcastSearchView.swift # Search tab
+│   │   ├── SettingsView.swift      # Settings tab
+│   │   └── EpisodeDetailView.swift
 │   └── CarPlay/                # CarPlay support
 │       └── CarPlaySceneDelegate.swift
 │
@@ -131,6 +154,20 @@ AudioShelf/
 ## Changelog
 
 ### February 2026
+
+#### Tab-Based Navigation & Podcast Search
+- Added new tab bar navigation with Home, Library, Search, and Settings tabs
+- **Home tab**: Carousel of recently updated podcasts (cover art only, clean visual design)
+- **Library tab**: Full podcast list with existing search, filter, and sort functionality
+- **Search tab**: Search iTunes for podcasts and add them to your library
+  - 300ms debounced search to reduce API calls
+  - Add button on each result with success confirmation
+  - Auto-download enabled for newly added podcasts (hourly check)
+- **Settings tab**: Logout button and app version info
+- Floating mini player positioned above tab bar (no longer covers navigation)
+- New models: `PodcastSearchResult`, `LibraryFolder`
+- New ViewModels: `HomeViewModel`, `PodcastSearchViewModel`
+- New API methods: `searchPodcasts()`, `getLibraryFolders()`, `addPodcast()`
 
 #### Progress Sync Implementation
 - Added `ProgressSyncService` for bidirectional server sync

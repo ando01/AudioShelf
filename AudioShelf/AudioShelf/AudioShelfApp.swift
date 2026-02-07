@@ -86,11 +86,20 @@ struct RootView: View {
     @State private var isPlayerExpanded = false
     @State private var lastEpisodeId: String?
 
+    // Height of the mini player (approximate)
+    private let miniPlayerHeight: CGFloat = 140
+
     var body: some View {
         ZStack(alignment: .bottom) {
             // Main content
             if isLoggedIn {
-                PodcastListView(isLoggedIn: $isLoggedIn, audioPlayer: audioPlayer)
+                MainTabView(isLoggedIn: $isLoggedIn, audioPlayer: audioPlayer)
+                    .safeAreaInset(edge: .bottom) {
+                        // Add space for mini player above tab bar when not expanded
+                        if audioPlayer.currentEpisode != nil && !isPlayerExpanded {
+                            Color.clear.frame(height: miniPlayerHeight)
+                        }
+                    }
             } else {
                 LoginView(isLoggedIn: $isLoggedIn)
             }
@@ -101,10 +110,12 @@ struct RootView: View {
                     audioPlayer: audioPlayer,
                     isExpanded: $isPlayerExpanded
                 )
+                .padding(.bottom, isPlayerExpanded ? 0 : 49) // Tab bar height
                 .transition(.move(edge: .bottom))
             }
         }
         .animation(.easeInOut, value: audioPlayer.currentEpisode != nil)
+        .animation(.easeInOut, value: isPlayerExpanded)
         .onChange(of: audioPlayer.currentEpisode?.id) { oldId, newId in
             // When a new episode starts playing, minimize the player
             if newId != nil && newId != lastEpisodeId {
