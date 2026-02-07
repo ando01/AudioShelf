@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BDB8695A2F33A951005BD21D /* TVLoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB869522F33A951005BD21D /* TVLoginView.swift */; };
+		BDB8695B2F33A951005BD21D /* TVEpisodeListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB869512F33A951005BD21D /* TVEpisodeListView.swift */; };
+		BDB8695C2F33A951005BD21D /* TVContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB869502F33A951005BD21D /* TVContentView.swift */; };
+		BDB8695D2F33A951005BD21D /* TVVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB869542F33A951005BD21D /* TVVideoPlayerView.swift */; };
+		BDB8695F2F33A951005BD21D /* AudioShelfTVApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB869572F33A951005BD21D /* AudioShelfTVApp.swift */; };
+		BDB869602F33A951005BD21D /* TVNowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDB869532F33A951005BD21D /* TVNowPlayingView.swift */; };
+		BDB869612F33A951005BD21D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BDB869562F33A951005BD21D /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		BD7960AE2F0ED78000A49E7F /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -21,15 +31,63 @@
 			remoteGlobalIDString = BD79609F2F0ED77F00A49E7F;
 			remoteInfo = AudioShelf;
 		};
+		BDB8692B2F33A8BB005BD21D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BD7960982F0ED77F00A49E7F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BDB8691D2F33A8BA005BD21D;
+			remoteInfo = AudioShelfTV;
+		};
+		BDB869352F33A8BB005BD21D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BD7960982F0ED77F00A49E7F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BDB8691D2F33A8BA005BD21D;
+			remoteInfo = AudioShelfTV;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		BD7960A02F0ED77F00A49E7F /* AudioShelf.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioShelf.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		BD7960AD2F0ED78000A49E7F /* AudioShelfTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AudioShelfTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		BD7960B72F0ED78000A49E7F /* AudioShelfUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AudioShelfUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BDB8691E2F33A8BA005BD21D /* AudioShelfTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AudioShelfTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		BDB8692A2F33A8BB005BD21D /* AudioShelfTVTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AudioShelfTVTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BDB869342F33A8BB005BD21D /* AudioShelfTVUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AudioShelfTVUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		BDB869502F33A951005BD21D /* TVContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVContentView.swift; sourceTree = "<group>"; };
+		BDB869512F33A951005BD21D /* TVEpisodeListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVEpisodeListView.swift; sourceTree = "<group>"; };
+		BDB869522F33A951005BD21D /* TVLoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVLoginView.swift; sourceTree = "<group>"; };
+		BDB869532F33A951005BD21D /* TVNowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVNowPlayingView.swift; sourceTree = "<group>"; };
+		BDB869542F33A951005BD21D /* TVVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVVideoPlayerView.swift; sourceTree = "<group>"; };
+		BDB869562F33A951005BD21D /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		BDB869572F33A951005BD21D /* AudioShelfTVApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioShelfTVApp.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BDB869632F33AA73005BD21D /* Exceptions for "AudioShelf" folder in "AudioShelfTV" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Models/Bookmark.swift,
+				Models/Episode.swift,
+				Models/Library.swift,
+				Models/PlaybackProgress.swift,
+				Models/Podcast.swift,
+				Models/User.swift,
+				Services/AudioBookshelfAPI.swift,
+				Services/AudioMetadataCache.swift,
+				Services/AudioPlayer.swift,
+				Services/BookmarkService.swift,
+				Services/EpisodeDownloadManager.swift,
+				Services/OfflineDataCache.swift,
+				Services/PlaybackProgressService.swift,
+				Services/ProgressSyncService.swift,
+				ViewModels/EpisodeDetailViewModel.swift,
+				ViewModels/LoginViewModel.swift,
+				ViewModels/PodcastListViewModel.swift,
+				Views/VideoPlayerView.swift,
+			);
+			target = BDB8691D2F33A8BA005BD21D /* AudioShelfTV */;
+		};
 		BDD60DA92F0F0729007FC4E9 /* Exceptions for "AudioShelf" folder in "AudioShelf" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -44,6 +102,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				BDD60DA92F0F0729007FC4E9 /* Exceptions for "AudioShelf" folder in "AudioShelf" target */,
+				BDB869632F33AA73005BD21D /* Exceptions for "AudioShelf" folder in "AudioShelfTV" target */,
 			);
 			path = AudioShelf;
 			sourceTree = "<group>";
@@ -56,6 +115,21 @@
 		BD7960BA2F0ED78000A49E7F /* AudioShelfUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = AudioShelfUITests;
+			sourceTree = "<group>";
+		};
+		BDB8691F2F33A8BA005BD21D /* AudioShelfTV */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AudioShelfTV;
+			sourceTree = "<group>";
+		};
+		BDB8692D2F33A8BB005BD21D /* AudioShelfTVTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AudioShelfTVTests;
+			sourceTree = "<group>";
+		};
+		BDB869372F33A8BB005BD21D /* AudioShelfTVUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = AudioShelfTVUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -82,15 +156,40 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BDB8691B2F33A8BA005BD21D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB869272F33A8BB005BD21D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB869312F33A8BB005BD21D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		BD7960972F0ED77F00A49E7F = {
 			isa = PBXGroup;
 			children = (
+				BDB869592F33A951005BD21D /* AudioShelfTV */,
 				BD7960A22F0ED77F00A49E7F /* AudioShelf */,
 				BD7960B02F0ED78000A49E7F /* AudioShelfTests */,
 				BD7960BA2F0ED78000A49E7F /* AudioShelfUITests */,
+				BDB8691F2F33A8BA005BD21D /* AudioShelfTV */,
+				BDB8692D2F33A8BB005BD21D /* AudioShelfTVTests */,
+				BDB869372F33A8BB005BD21D /* AudioShelfTVUITests */,
 				BD7960A12F0ED77F00A49E7F /* Products */,
 			);
 			sourceTree = "<group>";
@@ -101,8 +200,33 @@
 				BD7960A02F0ED77F00A49E7F /* AudioShelf.app */,
 				BD7960AD2F0ED78000A49E7F /* AudioShelfTests.xctest */,
 				BD7960B72F0ED78000A49E7F /* AudioShelfUITests.xctest */,
+				BDB8691E2F33A8BA005BD21D /* AudioShelfTV.app */,
+				BDB8692A2F33A8BB005BD21D /* AudioShelfTVTests.xctest */,
+				BDB869342F33A8BB005BD21D /* AudioShelfTVUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		BDB869552F33A951005BD21D /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				BDB869502F33A951005BD21D /* TVContentView.swift */,
+				BDB869512F33A951005BD21D /* TVEpisodeListView.swift */,
+				BDB869522F33A951005BD21D /* TVLoginView.swift */,
+				BDB869532F33A951005BD21D /* TVNowPlayingView.swift */,
+				BDB869542F33A951005BD21D /* TVVideoPlayerView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		BDB869592F33A951005BD21D /* AudioShelfTV */ = {
+			isa = PBXGroup;
+			children = (
+				BDB869552F33A951005BD21D /* Views */,
+				BDB869562F33A951005BD21D /* Assets.xcassets */,
+				BDB869572F33A951005BD21D /* AudioShelfTVApp.swift */,
+			);
+			path = AudioShelfTV;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -176,6 +300,74 @@
 			productReference = BD7960B72F0ED78000A49E7F /* AudioShelfUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		BDB8691D2F33A8BA005BD21D /* AudioShelfTV */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BDB869422F33A8BB005BD21D /* Build configuration list for PBXNativeTarget "AudioShelfTV" */;
+			buildPhases = (
+				BDB8691A2F33A8BA005BD21D /* Sources */,
+				BDB8691B2F33A8BA005BD21D /* Frameworks */,
+				BDB8691C2F33A8BA005BD21D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BDB8691F2F33A8BA005BD21D /* AudioShelfTV */,
+			);
+			name = AudioShelfTV;
+			packageProductDependencies = (
+			);
+			productName = AudioShelfTV;
+			productReference = BDB8691E2F33A8BA005BD21D /* AudioShelfTV.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BDB869292F33A8BB005BD21D /* AudioShelfTVTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BDB869432F33A8BB005BD21D /* Build configuration list for PBXNativeTarget "AudioShelfTVTests" */;
+			buildPhases = (
+				BDB869262F33A8BB005BD21D /* Sources */,
+				BDB869272F33A8BB005BD21D /* Frameworks */,
+				BDB869282F33A8BB005BD21D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BDB8692C2F33A8BB005BD21D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BDB8692D2F33A8BB005BD21D /* AudioShelfTVTests */,
+			);
+			name = AudioShelfTVTests;
+			packageProductDependencies = (
+			);
+			productName = AudioShelfTVTests;
+			productReference = BDB8692A2F33A8BB005BD21D /* AudioShelfTVTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		BDB869332F33A8BB005BD21D /* AudioShelfTVUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BDB869442F33A8BB005BD21D /* Build configuration list for PBXNativeTarget "AudioShelfTVUITests" */;
+			buildPhases = (
+				BDB869302F33A8BB005BD21D /* Sources */,
+				BDB869312F33A8BB005BD21D /* Frameworks */,
+				BDB869322F33A8BB005BD21D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BDB869362F33A8BB005BD21D /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				BDB869372F33A8BB005BD21D /* AudioShelfTVUITests */,
+			);
+			name = AudioShelfTVUITests;
+			packageProductDependencies = (
+			);
+			productName = AudioShelfTVUITests;
+			productReference = BDB869342F33A8BB005BD21D /* AudioShelfTVUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -183,7 +375,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2610;
+				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2610;
 				TargetAttributes = {
 					BD79609F2F0ED77F00A49E7F = {
@@ -196,6 +388,17 @@
 					BD7960B62F0ED78000A49E7F = {
 						CreatedOnToolsVersion = 26.1.1;
 						TestTargetID = BD79609F2F0ED77F00A49E7F;
+					};
+					BDB8691D2F33A8BA005BD21D = {
+						CreatedOnToolsVersion = 26.2;
+					};
+					BDB869292F33A8BB005BD21D = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = BDB8691D2F33A8BA005BD21D;
+					};
+					BDB869332F33A8BB005BD21D = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = BDB8691D2F33A8BA005BD21D;
 					};
 				};
 			};
@@ -216,6 +419,9 @@
 				BD79609F2F0ED77F00A49E7F /* AudioShelf */,
 				BD7960AC2F0ED78000A49E7F /* AudioShelfTests */,
 				BD7960B62F0ED78000A49E7F /* AudioShelfUITests */,
+				BDB8691D2F33A8BA005BD21D /* AudioShelfTV */,
+				BDB869292F33A8BB005BD21D /* AudioShelfTVTests */,
+				BDB869332F33A8BB005BD21D /* AudioShelfTVUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -236,6 +442,28 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		BD7960B52F0ED78000A49E7F /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB8691C2F33A8BA005BD21D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BDB869612F33A951005BD21D /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB869282F33A8BB005BD21D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB869322F33A8BB005BD21D /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -266,6 +494,33 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BDB8691A2F33A8BA005BD21D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BDB8695A2F33A951005BD21D /* TVLoginView.swift in Sources */,
+				BDB8695B2F33A951005BD21D /* TVEpisodeListView.swift in Sources */,
+				BDB8695C2F33A951005BD21D /* TVContentView.swift in Sources */,
+				BDB8695D2F33A951005BD21D /* TVVideoPlayerView.swift in Sources */,
+				BDB8695F2F33A951005BD21D /* AudioShelfTVApp.swift in Sources */,
+				BDB869602F33A951005BD21D /* TVNowPlayingView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB869262F33A8BB005BD21D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BDB869302F33A8BB005BD21D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -278,6 +533,16 @@
 			isa = PBXTargetDependency;
 			target = BD79609F2F0ED77F00A49E7F /* AudioShelf */;
 			targetProxy = BD7960B82F0ED78000A49E7F /* PBXContainerItemProxy */;
+		};
+		BDB8692C2F33A8BB005BD21D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BDB8691D2F33A8BA005BD21D /* AudioShelfTV */;
+			targetProxy = BDB8692B2F33A8BB005BD21D /* PBXContainerItemProxy */;
+		};
+		BDB869362F33A8BB005BD21D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BDB8691D2F33A8BA005BD21D /* AudioShelfTV */;
+			targetProxy = BDB869352F33A8BB005BD21D /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -426,7 +691,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -467,7 +732,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelf;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
@@ -569,6 +834,163 @@
 			};
 			name = Release;
 		};
+		BDB8693C2F33A8BB005BD21D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelfTV;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.6;
+			};
+			name = Debug;
+		};
+		BDB8693D2F33A8BB005BD21D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "App Icon & Top Shelf Image";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=appletvos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 4;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=appletvos*]" = V662XDHDZX;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Automatic;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelfTV;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=appletvos*]" = AudioShelfTV;
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TVOS_DEPLOYMENT_TARGET = 17.6;
+			};
+			name = Release;
+		};
+		BDB8693E2F33A8BB005BD21D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V662XDHDZX;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelfTVTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AudioShelfTV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AudioShelfTV";
+				TVOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		BDB8693F2F33A8BB005BD21D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V662XDHDZX;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelfTVTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AudioShelfTV.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AudioShelfTV";
+				TVOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
+		BDB869402F33A8BB005BD21D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V662XDHDZX;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelfTVUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = AudioShelfTV;
+				TVOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		BDB869412F33A8BB005BD21D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = V662XDHDZX;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.schmoopy.AudioShelfTVUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = appletvos;
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 3;
+				TEST_TARGET_NAME = AudioShelfTV;
+				TVOS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -604,6 +1026,33 @@
 			buildConfigurations = (
 				BD7960C82F0ED78000A49E7F /* Debug */,
 				BD7960C92F0ED78000A49E7F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BDB869422F33A8BB005BD21D /* Build configuration list for PBXNativeTarget "AudioShelfTV" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BDB8693C2F33A8BB005BD21D /* Debug */,
+				BDB8693D2F33A8BB005BD21D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BDB869432F33A8BB005BD21D /* Build configuration list for PBXNativeTarget "AudioShelfTVTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BDB8693E2F33A8BB005BD21D /* Debug */,
+				BDB8693F2F33A8BB005BD21D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BDB869442F33A8BB005BD21D /* Build configuration list for PBXNativeTarget "AudioShelfTVUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BDB869402F33A8BB005BD21D /* Debug */,
+				BDB869412F33A8BB005BD21D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

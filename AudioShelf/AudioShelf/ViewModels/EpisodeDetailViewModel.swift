@@ -23,7 +23,7 @@ class EpisodeDetailViewModel {
 
     private let api = AudioBookshelfAPI.shared
     private var allEpisodes: [Episode] = []
-    private let progressService = PlaybackProgressService.shared
+    private let syncService = ProgressSyncService.shared
     private let downloadManager = EpisodeDownloadManager.shared
     private var progressRefreshTimer: Timer?
 
@@ -62,7 +62,7 @@ class EpisodeDetailViewModel {
         }
 
         // Update the progress for the currently playing episode
-        if let updatedProgress = progressService.getProgress(episodeId: currentEpisode.id) {
+        if let updatedProgress = syncService.getLocalProgress(episodeId: currentEpisode.id) {
             episodeProgress[currentEpisode.id] = updatedProgress
         }
     }
@@ -77,6 +77,13 @@ class EpisodeDetailViewModel {
             applyFiltering()
             loadProgress()
             isLoading = false
+
+            // Fetch and merge server progress in background
+            if !isOfflineMode {
+                Task {
+                    await loadProgressFromServer()
+                }
+            }
         } catch {
             isLoading = false
             errorMessage = "Failed to load episodes: \(error.localizedDescription)"
@@ -84,11 +91,25 @@ class EpisodeDetailViewModel {
     }
 
     func loadProgress() {
-        // Load progress for all episodes
+        // Load progress for all episodes from local storage
         episodeProgress.removeAll()
         for episode in allEpisodes {
-            if let progress = progressService.getProgress(episodeId: episode.id) {
+            if let progress = syncService.getLocalProgress(episodeId: episode.id) {
                 episodeProgress[episode.id] = progress
+            }
+        }
+    }
+
+    func loadProgressFromServer() async {
+        // Fetch and merge server progress for all episodes
+        for episode in allEpisodes {
+            if let progress = await syncService.fetchAndMergeProgress(
+                episodeId: episode.id,
+                libraryItemId: podcast.id
+            ) {
+                await MainActor.run {
+                    episodeProgress[episode.id] = progress
+                }
             }
         }
     }
@@ -103,13 +124,17 @@ class EpisodeDetailViewModel {
     }
 
     func clearProgress(for episode: Episode) {
-        progressService.clearProgress(episodeId: episode.id)
+        syncService.clearProgress(episodeId: episode.id, libraryItemId: podcast.id)
         episodeProgress.removeValue(forKey: episode.id)
     }
 
     func markAsFinished(_ episode: Episode) {
         let duration = episode.durationSeconds ?? 0
-        progressService.markAsFinished(episodeId: episode.id, duration: duration)
+        syncService.markAsFinished(
+            episodeId: episode.id,
+            libraryItemId: podcast.id,
+            duration: duration
+        )
         refreshProgress()
 
         // Auto-delete download if it exists

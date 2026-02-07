@@ -7,6 +7,25 @@
 
 import Foundation
 
+enum EpisodeMediaType {
+    case audio
+    case video
+
+    var iconName: String {
+        switch self {
+        case .audio: return "waveform"
+        case .video: return "video.fill"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .audio: return "Audio"
+        case .video: return "Video"
+        }
+    }
+}
+
 struct EpisodesResponse: Codable {
     let episodes: [Episode]
 }
@@ -38,6 +57,17 @@ struct Episode: Identifiable {
             return duration
         }
         return audioFile?.durationSeconds
+    }
+
+    /// Whether this episode contains video content based on the enclosure MIME type
+    var isVideo: Bool {
+        guard let type = enclosure?.type?.lowercased() else { return false }
+        return type.hasPrefix("video/")
+    }
+
+    /// The media type of this episode
+    var mediaType: EpisodeMediaType {
+        isVideo ? .video : .audio
     }
 
     enum CodingKeys: String, CodingKey {

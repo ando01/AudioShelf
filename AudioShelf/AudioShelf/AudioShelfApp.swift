@@ -7,6 +7,7 @@
 
 import SwiftUI
 import AVFoundation
+import AVKit
 import UIKit
 import Combine
 
@@ -43,6 +44,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        if AudioPlayer.shared.isVideoEpisode {
+            return .allButUpsideDown
+        }
         return .portrait
     }
 }
@@ -65,6 +69,11 @@ struct AudioShelfApp: App {
                     try AVAudioSession.sharedInstance().setActive(true)
                 } catch {
                     print("Failed to reactivate audio session: \(error)")
+                }
+
+                // Sync progress from server when app becomes active
+                Task {
+                    await ProgressSyncService.shared.syncAllFromServer()
                 }
             }
         }
@@ -262,10 +271,17 @@ struct MiniPlayerView: View {
                 HStack(spacing: 8) {
                     VStack(alignment: .leading, spacing: 2) {
                         if let episode = audioPlayer.currentEpisode {
-                            Text(episode.displayTitle)
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .lineLimit(1)
+                            HStack(spacing: 4) {
+                                if episode.isVideo {
+                                    Image(systemName: "video.fill")
+                                        .font(.caption)
+                                        .foregroundStyle(.purple)
+                                }
+                                Text(episode.displayTitle)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                            }
                         }
                         if let podcast = audioPlayer.currentPodcast {
                             Text(podcast.title)
@@ -469,6 +485,7 @@ struct ExpandedPlayerView: View {
     @State private var bookmarkNote = ""
     @State private var bookmarkTime: Double = 0
     @State private var selectedTab = 0
+    @State private var showFullScreenVideo = false
     @Environment(\.colorScheme) private var colorScheme
     private let bookmarkService = BookmarkService.shared
 
@@ -506,9 +523,27 @@ struct ExpandedPlayerView: View {
                 // Page 1: Player Controls
                 ScrollView {
                     VStack(spacing: 24) {
-                        // Podcast artwork
+                        // Podcast artwork or video player
                     Group {
-                        if let image = coverImage {
+                        if audioPlayer.isVideoEpisode {
+                            VStack(spacing: 8) {
+                                VideoPlayerView(player: audioPlayer.avPlayer)
+                                    .frame(width: 340, height: 191) // 16:9 aspect
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+
+                                Button {
+                                    showFullScreenVideo = true
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                        Text("Full Screen")
+                                    }
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                    .foregroundStyle(.blue)
+                                }
+                            }
+                        } else if let image = coverImage {
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
@@ -729,6 +764,10 @@ struct ExpandedPlayerView: View {
             if isShowing {
                 bookmarkTime = audioPlayer.currentTime
             }
+        }
+        .fullScreenCover(isPresented: $showFullScreenVideo) {
+            FullScreenVideoPlayerView(player: audioPlayer.avPlayer)
+                .ignoresSafeArea()
         }
     }
 

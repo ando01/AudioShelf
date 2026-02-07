@@ -205,6 +205,12 @@ struct EpisodeRow: View {
                                 .scaleEffect(0.7)
                         }
 
+                        if episode.isVideo {
+                            Image(systemName: "video.fill")
+                                .foregroundStyle(.purple)
+                                .imageScale(.small)
+                        }
+
                         Text(episode.displayTitle)
                             .font(.headline)
                             .lineLimit(isExpanded ? nil : 2)
@@ -237,6 +243,15 @@ struct EpisodeRow: View {
                             Text(episode.formattedDuration)
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
+                        }
+
+                        if episode.isVideo {
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            Text("Video")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.purple)
                         }
                     }
 

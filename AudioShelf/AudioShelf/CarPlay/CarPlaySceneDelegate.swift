@@ -18,6 +18,9 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
 
     // Genre filtering
     private var selectedGenre: String? = nil  // nil means "All Genres"
+
+    // Speed control
+    private let availableSpeeds: [Float] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
     private var availableGenres: [String] {
         let genres = Set(allPodcasts.flatMap { $0.media.metadata.genres ?? [] })
         return genres.sorted()
@@ -35,6 +38,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         // Set root template immediately on main thread
         DispatchQueue.main.async { [weak self] in
             self?.setupRootTemplate()
+            self?.configureNowPlayingTemplate()
             self?.loadPodcastData()
         }
     }
@@ -44,6 +48,7 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         didDisconnect interfaceController: CPInterfaceController
     ) {
         print("CarPlay: Did disconnect")
+        CPNowPlayingTemplate.shared.updateNowPlayingButtons([])
         self.interfaceController = nil
         self.allPodcasts = []
         self.filteredPodcasts = []
@@ -316,5 +321,116 @@ class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
         }
 
         AudioPlayer.shared.play(episode: episode, audioURL: audioURL, podcast: podcast)
+    }
+
+    // MARK: - Now Playing Controls
+
+    private func configureNowPlayingTemplate() {
+        updateNowPlayingButtons()
+    }
+
+    private func updateNowPlayingButtons() {
+        let nowPlayingTemplate = CPNowPlayingTemplate.shared
+
+        // Speed button - shows current speed, tap to pick from list
+        let speedImage = createSpeedImage(for: AudioPlayer.shared.playbackSpeed)
+        let speedButton = CPNowPlayingImageButton(image: speedImage) { [weak self] _ in
+            self?.showSpeedPicker()
+        }
+
+        // Bookmark button - tap to save current position
+        let bookmarkImage = UIImage(systemName: "bookmark")?.withRenderingMode(.alwaysTemplate) ?? UIImage()
+        let bookmarkButton = CPNowPlayingImageButton(image: bookmarkImage) { [weak self] _ in
+            self?.addBookmarkAtCurrentPosition()
+        }
+
+        nowPlayingTemplate.updateNowPlayingButtons([speedButton, bookmarkButton])
+    }
+
+    // MARK: - Speed Control
+
+    private func formatSpeed(_ speed: Float) -> String {
+        let formatted = String(format: "%.2f", speed)
+        let trimmed = formatted
+            .replacingOccurrences(of: "0+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\.$", with: "", options: .regularExpression)
+        return "\(trimmed)×"
+    }
+
+    private func showSpeedPicker() {
+        let currentSpeed = AudioPlayer.shared.playbackSpeed
+
+        var items: [CPListItem] = []
+        for speed in availableSpeeds {
+            let label = formatSpeed(speed)
+            let item = CPListItem(
+                text: label,
+                detailText: speed == currentSpeed ? "Current speed" : nil
+            )
+            if speed == currentSpeed {
+                item.accessoryType = .cloud
+            }
+            item.handler = { [weak self] _, completion in
+                AudioPlayer.shared.setPlaybackSpeed(speed)
+                self?.updateNowPlayingButtons()
+                self?.interfaceController?.popTemplate(animated: true, completion: nil)
+                print("CarPlay: Playback speed set to \(label)")
+                completion()
+            }
+            items.append(item)
+        }
+
+        let section = CPListSection(items: items)
+        let speedTemplate = CPListTemplate(title: "Playback Speed", sections: [section])
+        interfaceController?.pushTemplate(speedTemplate, animated: true, completion: nil)
+    }
+
+    private func createSpeedImage(for speed: Float) -> UIImage {
+        let speedText = formatSpeed(speed)
+        let size = CGSize(width: 88, height: 88)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { _ in
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 40, weight: .bold),
+                .foregroundColor: UIColor.black
+            ]
+            let text = NSString(string: speedText)
+            let textSize = text.size(withAttributes: attributes)
+            let point = CGPoint(
+                x: (size.width - textSize.width) / 2,
+                y: (size.height - textSize.height) / 2
+            )
+            text.draw(at: point, withAttributes: attributes)
+        }
+        return image.withRenderingMode(.alwaysTemplate)
+    }
+
+    // MARK: - Bookmarks
+
+    private func addBookmarkAtCurrentPosition() {
+        guard let episode = AudioPlayer.shared.currentEpisode else {
+            print("CarPlay: No episode playing, cannot add bookmark")
+            return
+        }
+
+        let timestamp = AudioPlayer.shared.currentTime
+        BookmarkService.shared.addBookmark(episodeId: episode.id, timestamp: timestamp, note: nil)
+        print("CarPlay: Bookmark added at \(Bookmark(episodeId: episode.id, timestamp: timestamp, note: nil).formattedTimestamp)")
+
+        // Show filled bookmark icon briefly as feedback
+        let filledImage = UIImage(systemName: "bookmark.fill")?.withRenderingMode(.alwaysTemplate) ?? UIImage()
+        let feedbackButton = CPNowPlayingImageButton(image: filledImage) { [weak self] _ in
+            self?.addBookmarkAtCurrentPosition()
+        }
+        let speedImage = createSpeedImage(for: AudioPlayer.shared.playbackSpeed)
+        let speedButton = CPNowPlayingImageButton(image: speedImage) { [weak self] _ in
+            self?.showSpeedPicker()
+        }
+        CPNowPlayingTemplate.shared.updateNowPlayingButtons([speedButton, feedbackButton])
+
+        // Revert to outline icon after brief delay
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            self?.updateNowPlayingButtons()
+        }
     }
 }

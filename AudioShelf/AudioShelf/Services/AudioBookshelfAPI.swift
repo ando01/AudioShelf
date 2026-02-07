@@ -14,6 +14,21 @@ enum APIError: Error {
     case serverError(String)
 }
 
+/// Server progress response model for Audiobookshelf API
+struct ServerProgress: Codable {
+    let id: String?
+    let libraryItemId: String
+    let episodeId: String
+    let duration: Double
+    let progress: Double          // 0.0 to 1.0
+    let currentTime: Double
+    let isFinished: Bool
+    let hideFromContinueListening: Bool?
+    let lastUpdate: Double?       // Unix timestamp in milliseconds
+    let startedAt: Double?
+    let finishedAt: Double?
+}
+
 @Observable
 class AudioBookshelfAPI {
     static let shared = AudioBookshelfAPI()
@@ -308,6 +323,196 @@ class AudioBookshelfAPI {
             }
             throw error
         }
+    }
+
+    // MARK: - Progress Sync
+
+    /// Request body for updating progress
+    private struct ProgressUpdateRequest: Encodable {
+        let currentTime: Double
+        let duration: Double
+        let progress: Double          // 0.0 to 1.0
+        let isFinished: Bool
+    }
+
+    /// Update progress for a podcast episode
+    /// API: PATCH /api/me/progress/<libraryItemId>/<episodeId>
+    func updateProgress(
+        libraryItemId: String,
+        episodeId: String,
+        currentTime: Double,
+        duration: Double,
+        isFinished: Bool
+    ) async throws {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        let progress = duration > 0 ? currentTime / duration : 0
+        let urlString = "\(serverURL)/api/me/progress/\(libraryItemId)/\(episodeId)"
+        print("🌐 [API] PATCH \(urlString)")
+
+        guard let url = URL(string: urlString) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "PATCH"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 10
+
+        let body = ProgressUpdateRequest(
+            currentTime: currentTime,
+            duration: duration,
+            progress: progress,
+            isFinished: isFinished
+        )
+        let bodyData = try JSONEncoder().encode(body)
+        request.httpBody = bodyData
+
+        if let bodyString = String(data: bodyData, encoding: .utf8) {
+            print("🌐 [API] Request body: \(bodyString)")
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            print("🌐 [API] ❌ Invalid response type")
+            throw APIError.invalidResponse
+        }
+
+        print("🌐 [API] Response status: \(httpResponse.statusCode)")
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🌐 [API] Response body: \(responseString.prefix(500))")
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            print("🌐 [API] ❌ Error status code: \(httpResponse.statusCode)")
+            throw APIError.invalidResponse
+        }
+    }
+
+    /// Get progress for a specific episode
+    /// API: GET /api/me/progress/<libraryItemId>/<episodeId>
+    func getProgress(
+        libraryItemId: String,
+        episodeId: String
+    ) async throws -> ServerProgress? {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        let urlString = "\(serverURL)/api/me/progress/\(libraryItemId)/\(episodeId)"
+        print("🌐 [API] GET \(urlString)")
+
+        guard let url = URL(string: urlString) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 10
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+
+        print("🌐 [API] Response status: \(httpResponse.statusCode)")
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🌐 [API] Response body: \(responseString.prefix(500))")
+        }
+
+        // 404 means no progress exists yet
+        if httpResponse.statusCode == 404 {
+            return nil
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
+        return try JSONDecoder().decode(ServerProgress.self, from: data)
+    }
+
+    /// Get all items currently in progress
+    /// API: GET /api/me/items-in-progress
+    func getItemsInProgress() async throws -> [ServerProgress] {
+        guard let serverURL = serverURL, let token = authToken else {
+            throw APIError.unauthorized
+        }
+
+        let urlString = "\(serverURL)/api/me/items-in-progress"
+        print("🌐 [API] GET \(urlString)")
+
+        guard let url = URL(string: urlString) else {
+            throw APIError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            throw APIError.invalidResponse
+        }
+
+        if let responseString = String(data: data, encoding: .utf8) {
+            print("🌐 [API] items-in-progress response: \(responseString.prefix(1000))")
+        }
+
+        // The response contains libraryItems with nested mediaProgress
+        struct ItemsInProgressResponse: Codable {
+            let libraryItems: [LibraryItemInProgress]?
+        }
+
+        struct LibraryItemInProgress: Codable {
+            let id: String
+            let mediaProgress: MediaProgressWrapper?
+            let recentEpisode: RecentEpisode?
+        }
+
+        struct MediaProgressWrapper: Codable {
+            let id: String?
+            let libraryItemId: String
+            let episodeId: String
+            let duration: Double
+            let progress: Double
+            let currentTime: Double
+            let isFinished: Bool
+            let hideFromContinueListening: Bool?
+            let lastUpdate: Double?
+            let startedAt: Double?
+            let finishedAt: Double?
+        }
+
+        struct RecentEpisode: Codable {
+            let id: String
+        }
+
+        let decoded = try JSONDecoder().decode(ItemsInProgressResponse.self, from: data)
+
+        return decoded.libraryItems?.compactMap { item -> ServerProgress? in
+            guard let mp = item.mediaProgress else { return nil }
+            return ServerProgress(
+                id: mp.id,
+                libraryItemId: mp.libraryItemId,
+                episodeId: mp.episodeId,
+                duration: mp.duration,
+                progress: mp.progress,
+                currentTime: mp.currentTime,
+                isFinished: mp.isFinished,
+                hideFromContinueListening: mp.hideFromContinueListening,
+                lastUpdate: mp.lastUpdate,
+                startedAt: mp.startedAt,
+                finishedAt: mp.finishedAt
+            )
+        } ?? []
     }
 
     // MARK: - Cover Images

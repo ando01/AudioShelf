@@ -9,7 +9,9 @@ import AVFoundation
 import Combine
 import Foundation
 import MediaPlayer
+#if os(iOS)
 import UIKit
+#endif
 
 @Observable
 class AudioPlayer {
@@ -18,9 +20,10 @@ class AudioPlayer {
     private var player: AVPlayer?
     private var timeObserver: Any?
     private var cachedArtwork: MPMediaItemArtwork?
-    private let progressService = PlaybackProgressService.shared
+    private let syncService = ProgressSyncService.shared
     private let metadataCache = AudioMetadataCache.shared
     private var lastSaveTime: Double = 0
+    private var currentLibraryItemId: String?
 
     // Status observation for readiness-based seeking
     private var statusObservation: NSKeyValueObservation?
@@ -36,6 +39,14 @@ class AudioPlayer {
 
     var isPlaying = false
     var isBuffering = false  // Kept for compatibility but not actively used
+
+    /// Read-only access to the AVPlayer for video rendering
+    var avPlayer: AVPlayer? { player }
+
+    /// Whether the currently playing episode is a video episode
+    var isVideoEpisode: Bool {
+        currentEpisode?.isVideo ?? false
+    }
 
     // Mark currentTime as ObservationIgnored to prevent excessive view updates (updates every 0.5s)
     // Views that need real-time updates should use the timeUpdatePublisher instead
@@ -54,11 +65,12 @@ class AudioPlayer {
         setupRemoteCommandCenter()
         setupAudioSessionNotifications()
         // Clean up old progress and expired metadata on launch
-        progressService.cleanupOldProgress()
+        PlaybackProgressService.shared.cleanupOldProgress()
         metadataCache.cleanupExpiredEntries()
     }
 
     private func setupAudioSessionNotifications() {
+        #if os(iOS)
         // Handle audio session interruptions (calls, alarms, etc.)
         NotificationCenter.default.addObserver(
             forName: AVAudioSession.interruptionNotification,
@@ -89,6 +101,7 @@ class AudioPlayer {
                 break
             }
         }
+        #endif
     }
 
     func play(episode: Episode, audioURL: URL, podcast: Podcast? = nil) {
@@ -106,7 +119,9 @@ class AudioPlayer {
 
             currentEpisode = episode
             currentPodcast = podcast
+            currentLibraryItemId = podcast?.id
             cachedArtwork = nil  // Clear cached artwork for new episode
+            configureAudioSession(forVideo: episode.isVideo)
 
             // Set duration from multiple sources in order of preference
             // 1. Cached metadata (fastest)
@@ -125,13 +140,42 @@ class AudioPlayer {
             }
 
             // Check for saved progress - store for seeking when ready
-            if let savedProgress = progressService.getProgress(episodeId: episode.id),
+            // First check local progress for fast startup
+            if let savedProgress = syncService.getLocalProgress(episodeId: episode.id),
                savedProgress.currentTime > 5.0,
                savedProgress.percentComplete < 0.95 {
                 pendingSeekTime = savedProgress.currentTime
                 print("📍 Will resume from \(savedProgress.currentTime) seconds when ready")
             } else {
                 pendingSeekTime = nil
+            }
+
+            // Fetch server progress in background and update if needed
+            if let libraryItemId = podcast?.id {
+                Task {
+                    if let serverProgress = await syncService.fetchAndMergeProgress(
+                        episodeId: episode.id,
+                        libraryItemId: libraryItemId
+                    ),
+                       serverProgress.currentTime > 5.0,
+                       serverProgress.percentComplete < 0.95,
+                       serverProgress.currentTime > (self.pendingSeekTime ?? 0) {
+                        await MainActor.run {
+                            // Check if we should seek
+                            let shouldSeek = serverProgress.currentTime > self.currentTime + 5.0
+
+                            if self.player?.currentItem?.status == .readyToPlay && shouldSeek {
+                                // Player is already ready - seek directly
+                                print("📍 Seeking to server progress: \(serverProgress.currentTime) seconds")
+                                self.seek(to: serverProgress.currentTime)
+                            } else if shouldSeek {
+                                // Player not ready yet - update pending seek time
+                                self.pendingSeekTime = serverProgress.currentTime
+                                print("📍 Updated resume position from server: \(serverProgress.currentTime) seconds")
+                            }
+                        }
+                    }
+                }
             }
 
             // Create player item with optimized buffering
@@ -170,11 +214,15 @@ class AudioPlayer {
                 self.updateNowPlayingInfo()
 
                 // Auto-save every 10 seconds
-                if self.currentTime - self.lastSaveTime >= 10.0, let episode = self.currentEpisode {
-                    self.progressService.saveProgress(
+                if self.currentTime - self.lastSaveTime >= 10.0,
+                   let episode = self.currentEpisode,
+                   let libraryItemId = self.currentLibraryItemId {
+                    self.syncService.saveProgress(
                         episodeId: episode.id,
+                        libraryItemId: libraryItemId,
                         currentTime: self.currentTime,
-                        duration: self.duration
+                        duration: self.duration,
+                        forceSyncNow: false
                     )
                     self.lastSaveTime = self.currentTime
                 }
@@ -324,6 +372,28 @@ class AudioPlayer {
     }
 
     func pause() {
+        // Get actual player time and save progress on pause
+        let actualCurrentTime: Double
+        if let playerTime = player?.currentTime(), playerTime.isValid && !playerTime.isIndefinite {
+            actualCurrentTime = playerTime.seconds
+        } else {
+            actualCurrentTime = currentTime
+        }
+
+        // Save and force sync progress when pausing
+        if let episode = currentEpisode,
+           let libraryItemId = currentLibraryItemId,
+           actualCurrentTime > 0 {
+            syncService.saveProgress(
+                episodeId: episode.id,
+                libraryItemId: libraryItemId,
+                currentTime: actualCurrentTime,
+                duration: duration,
+                forceSyncNow: true
+            )
+            print("Paused and saved progress: \(actualCurrentTime)s for episode \(episode.id)")
+        }
+
         player?.pause()
         isPlaying = false
         updateNowPlayingInfo()
@@ -345,14 +415,26 @@ class AudioPlayer {
     }
 
     func stop() {
-        // Save progress before clearing
-        if let episode = currentEpisode, currentTime > 0 {
-            progressService.saveProgress(
+        // Get the actual current time from the player (more accurate than cached currentTime)
+        let actualCurrentTime: Double
+        if let playerTime = player?.currentTime(), playerTime.isValid && !playerTime.isIndefinite {
+            actualCurrentTime = playerTime.seconds
+        } else {
+            actualCurrentTime = currentTime
+        }
+
+        // Save progress before clearing - force sync to server
+        if let episode = currentEpisode,
+           let libraryItemId = currentLibraryItemId,
+           actualCurrentTime > 0 {
+            syncService.saveProgress(
                 episodeId: episode.id,
-                currentTime: currentTime,
-                duration: duration
+                libraryItemId: libraryItemId,
+                currentTime: actualCurrentTime,
+                duration: duration,
+                forceSyncNow: true
             )
-            print("Saved progress: \(currentTime)s for episode \(episode.id)")
+            print("Saved progress: \(actualCurrentTime)s for episode \(episode.id)")
         }
 
         player?.pause()
@@ -384,6 +466,7 @@ class AudioPlayer {
         duration = 0
         currentEpisode = nil
         currentPodcast = nil
+        currentLibraryItemId = nil
         cachedArtwork = nil
         pendingSeekTime = nil
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -444,14 +527,17 @@ class AudioPlayer {
 
     // MARK: - Background Audio & Lock Screen Support
 
-    private func configureAudioSession() {
+    private func configureAudioSession(forVideo: Bool = false) {
+        #if os(iOS)
         do {
             let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(.playback, mode: .spokenAudio)
+            let mode: AVAudioSession.Mode = forVideo ? .moviePlayback : .spokenAudio
+            try audioSession.setCategory(.playback, mode: mode)
             try audioSession.setActive(true)
         } catch {
             print("Failed to configure audio session: \(error)")
         }
+        #endif
     }
 
     private func setupRemoteCommandCenter() {
@@ -550,6 +636,7 @@ class AudioPlayer {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
 
+    #if os(iOS)
     private func loadArtwork() async -> MPMediaItemArtwork? {
         // First try to get podcast cover art
         if let podcast = currentPodcast,
@@ -623,4 +710,9 @@ class AudioPlayer {
             text.draw(in: textRect, withAttributes: attrs)
         }
     }
+    #else
+    private func loadArtwork() async -> MPMediaItemArtwork? {
+        return nil
+    }
+    #endif
 }

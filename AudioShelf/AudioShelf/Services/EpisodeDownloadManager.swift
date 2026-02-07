@@ -7,6 +7,7 @@
 
 import Foundation
 
+#if os(iOS)
 @Observable
 class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
     static let shared = EpisodeDownloadManager()
@@ -15,9 +16,14 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
     private(set) var downloadProgress: [String: Double] = [:]
     private(set) var downloadedEpisodes: Set<String> = []
     private var episodeIdForTask: [Int: String] = [:]
+    /// Tracks the MIME type for each downloading episode to determine file extension
+    private var mimeTypeForEpisode: [String: String] = [:]
 
     private let fileManager = FileManager.default
     private var downloadSession: URLSession!
+
+    /// All supported file extensions for downloaded episodes
+    private static let supportedExtensions = ["mp3", "m4a", "mp4", "m4v", "webm"]
 
     private override init() {
         super.init()
@@ -25,6 +31,23 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
         config.isDiscretionary = false
         downloadSession = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         loadDownloadedEpisodes()
+    }
+
+    // MARK: - File Extension Mapping
+
+    /// Returns the appropriate file extension for a given MIME type
+    private static func fileExtension(for mimeType: String?) -> String {
+        guard let mimeType = mimeType?.lowercased() else { return "mp3" }
+        switch mimeType {
+        case "video/mp4": return "mp4"
+        case "video/x-m4v": return "m4v"
+        case "video/webm": return "webm"
+        case "audio/mp4", "audio/x-m4a", "audio/aac": return "m4a"
+        case "audio/mpeg", "audio/mp3": return "mp3"
+        default:
+            if mimeType.hasPrefix("video/") { return "mp4" }
+            return "mp3"
+        }
     }
 
     // MARK: - URLSessionDownloadDelegate
@@ -36,9 +59,10 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
             return
         }
 
+        let mimeType = mimeTypeForEpisode[episodeId]
         print("✅ Handling download completion for episode: \(episodeId)")
         // MUST move file synchronously before returning - temp file is deleted after this method returns
-        handleDownloadCompletion(episodeId: episodeId, location: location)
+        handleDownloadCompletion(episodeId: episodeId, location: location, mimeType: mimeType)
     }
 
     func urlSession(_ session: URLSession, downloadTask: URLSessionDownloadTask, didWriteData bytesWritten: Int64, totalBytesWritten: Int64, totalBytesExpectedToWrite: Int64) {
@@ -70,6 +94,7 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
                 self.downloadTasks.removeValue(forKey: episodeId)
                 self.downloadProgress.removeValue(forKey: episodeId)
                 self.episodeIdForTask.removeValue(forKey: task.taskIdentifier)
+                self.mimeTypeForEpisode.removeValue(forKey: episodeId)
             }
         } else {
             print("✅ Task completed successfully for: \(episodeId)")
@@ -91,8 +116,21 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
         return downloadsDir
     }
 
-    private func getLocalFileURL(for episodeId: String) -> URL {
-        return getDownloadsDirectory().appendingPathComponent("\(episodeId).mp3")
+    private func getLocalFileURL(for episodeId: String, mimeType: String? = nil) -> URL {
+        let ext = Self.fileExtension(for: mimeType)
+        return getDownloadsDirectory().appendingPathComponent("\(episodeId).\(ext)")
+    }
+
+    /// Finds the local file for an episode, checking all supported extensions
+    private func findLocalFile(for episodeId: String) -> URL? {
+        let dir = getDownloadsDirectory()
+        for ext in Self.supportedExtensions {
+            let url = dir.appendingPathComponent("\(episodeId).\(ext)")
+            if fileManager.fileExists(atPath: url.path) {
+                return url
+            }
+        }
+        return nil
     }
 
     // MARK: - Download Management
@@ -106,6 +144,9 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
             print("⚠️ Episode already downloaded: \(episode.id)")
             return
         }
+
+        // Store the MIME type for determining file extension on completion
+        mimeTypeForEpisode[episode.id] = episode.enclosure?.type
 
         print("🔵 Creating download task...")
         let task = downloadSession.downloadTask(with: audioURL)
@@ -129,18 +170,22 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
         }
         downloadTasks.removeValue(forKey: episodeId)
         downloadProgress.removeValue(forKey: episodeId)
+        mimeTypeForEpisode.removeValue(forKey: episodeId)
     }
 
     func deleteDownload(episodeId: String) {
-        let localURL = getLocalFileURL(for: episodeId)
+        // Check all supported extensions for the file
+        guard let localURL = findLocalFile(for: episodeId) else {
+            downloadedEpisodes.remove(episodeId)
+            saveDownloadedEpisodes()
+            return
+        }
 
         do {
-            if fileManager.fileExists(atPath: localURL.path) {
-                try fileManager.removeItem(at: localURL)
-                downloadedEpisodes.remove(episodeId)
-                saveDownloadedEpisodes()
-                print("Deleted download for episode: \(episodeId)")
-            }
+            try fileManager.removeItem(at: localURL)
+            downloadedEpisodes.remove(episodeId)
+            saveDownloadedEpisodes()
+            print("Deleted download for episode: \(episodeId)")
         } catch {
             print("Failed to delete download: \(error)")
         }
@@ -162,8 +207,7 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
 
     func getLocalURL(for episodeId: String) -> URL? {
         guard isDownloaded(episodeId: episodeId) else { return nil }
-        let url = getLocalFileURL(for: episodeId)
-        return fileManager.fileExists(atPath: url.path) ? url : nil
+        return findLocalFile(for: episodeId)
     }
 
     // MARK: - Persistence
@@ -185,7 +229,7 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
 
     // MARK: - Download Completion
 
-    func handleDownloadCompletion(episodeId: String, location: URL) {
+    func handleDownloadCompletion(episodeId: String, location: URL, mimeType: String? = nil) {
         // Ensure downloads directory exists
         let downloadsDir = getDownloadsDirectory()
         do {
@@ -198,7 +242,7 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
             return
         }
 
-        let destination = getLocalFileURL(for: episodeId)
+        let destination = getLocalFileURL(for: episodeId, mimeType: mimeType)
         print("📁 Moving file from: \(location.path)")
         print("📁 Moving file to: \(destination.path)")
 
@@ -225,6 +269,7 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
                 }
                 self.downloadTasks.removeValue(forKey: episodeId)
                 self.downloadProgress.removeValue(forKey: episodeId)
+                self.mimeTypeForEpisode.removeValue(forKey: episodeId)
 
                 print("✅ Download completed for episode: \(episodeId)")
             }
@@ -235,3 +280,27 @@ class EpisodeDownloadManager: NSObject, URLSessionDownloadDelegate {
         }
     }
 }
+
+#else
+// tvOS stub - downloads are not practical on tvOS due to limited local storage
+@Observable
+class EpisodeDownloadManager: NSObject {
+    static let shared = EpisodeDownloadManager()
+
+    private(set) var downloadTasks: [String: Any] = [:]
+    private(set) var downloadProgress: [String: Double] = [:]
+    private(set) var downloadedEpisodes: Set<String> = []
+
+    private override init() {
+        super.init()
+    }
+
+    func downloadEpisode(_ episode: Episode, audioURL: URL) {}
+    func cancelDownload(episodeId: String) {}
+    func deleteDownload(episodeId: String) {}
+    func isDownloaded(episodeId: String) -> Bool { false }
+    func isDownloading(episodeId: String) -> Bool { false }
+    func getDownloadProgress(episodeId: String) -> Double { 0.0 }
+    func getLocalURL(for episodeId: String) -> URL? { nil }
+}
+#endif
